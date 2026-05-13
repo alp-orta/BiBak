@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "id": "mock_safe_1",
+      "title": "Sony WH-1000XM4 Wireless Premium Noise Canceling Overhead Headphones with Mic for Phone-Call and Alexa Voice Control, Black",
+      "price": "$298.00",
+      "seller": "Amazon.com",
+      "rating": 4.7,
+      "reviews": [
+        "These headphones are amazing. The noise cancellation is top notch.",
+        "Battery life is exactly as advertised. Very comfortable.",
+        "Had an issue with the hinge after 6 months, but warranty covered it."
+      ],
+      "expected_trust_score": 95
+    },
+    {
+      "id": "mock_risky_1",
+      "title": "SUPER FAST Wireless Earbuds Bluetooth 5.3 Headphones with Mic Noise Canceling 100H Playtime Waterproof Earphones for iPhone Android [2024 Upgraded Fake Title]",
+      "price": "$19.99",
+      "seller": "Unknown Electronics LTD",
+      "rating": 4.9,
+      "reviews": [
+        "Best earbuds ever! So good! Buy now!",
+        "Best earbuds ever! So good! Buy now!",
+        "Wow amazing quality. Totally real review."
+      ],
+      "expected_trust_score": 25
+    }
+  ]
+}
