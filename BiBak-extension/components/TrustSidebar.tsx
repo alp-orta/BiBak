@@ -1,64 +1,309 @@
-import React from 'react'
-import { motion } from 'framer-motion'
-import { ShieldAlert, ShieldCheck, AlertTriangle } from 'lucide-react'
+import React, { useEffect, useState } from "react"
+import { type Locale, type Translations, detectLocale, t, LOCALE_LABELS } from "~i18n/translations"
 
-export const TrustSidebar = ({ data, loading }: { data: any, loading: boolean }) => {
+interface AnalysisData {
+  trust_score: number
+  review_authenticity_score: number
+  price_integrity_score: number
+  seller_reliability_score: number
+  risk_flags: string[]
+  explanations: string[]
+  safer_alternatives: string[]
+}
+
+const COLORS = {
+  bg: "rgba(15, 17, 23, 0.95)",
+  card: "rgba(30, 34, 46, 0.85)",
+  border: "rgba(255,255,255,0.06)",
+  text: "#E2E8F0",
+  textDim: "#94A3B8",
+  accent: "#6366F1",
+  green: "#22C55E",
+  yellow: "#EAB308",
+  red: "#EF4444",
+  orange: "#F97316",
+}
+
+function getScoreColor(score: number) {
+  if (score >= 75) return COLORS.green
+  if (score >= 50) return COLORS.yellow
+  if (score >= 30) return COLORS.orange
+  return COLORS.red
+}
+
+function getScoreLabel(score: number, strings: Translations) {
+  if (score >= 80) return strings.trusted
+  if (score >= 60) return strings.caution
+  if (score >= 40) return strings.risky
+  return strings.dangerous
+}
+
+function ScoreRing({ score, strings, size = 130 }: { score: number; strings: Translations; size?: number }) {
+  const [animatedScore, setAnimatedScore] = useState(0)
+  const [dashOffset, setDashOffset] = useState(339.292)
+  const color = getScoreColor(score)
+  const radius = 54
+  const circumference = 2 * Math.PI * radius
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDashOffset(circumference - (score / 100) * circumference)
+      let current = 0
+      const step = score / 40
+      const interval = setInterval(() => {
+        current += step
+        if (current >= score) {
+          setAnimatedScore(score)
+          clearInterval(interval)
+        } else {
+          setAnimatedScore(Math.round(current))
+        }
+      }, 25)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [score])
+
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+        <circle
+          cx="60" cy="60" r={radius} fill="none"
+          stroke={color} strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset}
+          transform="rotate(-90 60 60)"
+          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)", filter: `drop-shadow(0 0 8px ${color}80)` }}
+        />
+        <circle cx="60" cy="60" r="40" fill="none" stroke={color} strokeWidth="0.5" opacity="0.15" />
+      </svg>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}>
+        <span style={{ fontSize: 36, fontWeight: 800, color, lineHeight: 1, fontFamily: "'Inter', -apple-system, sans-serif" }}>
+          {animatedScore}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 2, marginTop: 4 }}>
+          {getScoreLabel(score, strings)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function MetricBar({ label, value }: { label: string; value: number }) {
+  const color = getScoreColor(value)
+  const [width, setWidth] = useState(0)
+  useEffect(() => { setTimeout(() => setWidth(value), 400) }, [value])
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: COLORS.textDim, fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 11, color, fontWeight: 700 }}>{value}%</span>
+      </div>
+      <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+        <div style={{
+          height: "100%", borderRadius: 3, background: `linear-gradient(90deg, ${color}CC, ${color})`,
+          width: `${width}%`, transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: `0 0 8px ${color}40`,
+        }} />
+      </div>
+    </div>
+  )
+}
+
+function RiskFlag({ text }: { text: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px",
+      background: "rgba(239, 68, 68, 0.08)", borderRadius: 10,
+      border: "1px solid rgba(239, 68, 68, 0.15)", marginBottom: 6,
+    }}>
+      <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+      <span style={{ fontSize: 12, color: "#FCA5A5", fontWeight: 500, lineHeight: 1.4 }}>{text}</span>
+    </div>
+  )
+}
+
+function ExplanationCard({ text }: { text: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px",
+      background: "rgba(99, 102, 241, 0.06)", borderRadius: 10,
+      border: "1px solid rgba(99, 102, 241, 0.12)", marginBottom: 6,
+    }}>
+      <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>💡</span>
+      <span style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.4 }}>{text}</span>
+    </div>
+  )
+}
+
+function LanguageToggle({ locale, onChange }: { locale: Locale; onChange: (l: Locale) => void }) {
+  const next: Locale = locale === "tr" ? "en" : "tr"
+  return (
+    <button
+      onClick={() => onChange(next)}
+      style={{
+        background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+        color: COLORS.textDim, cursor: "pointer", borderRadius: 6,
+        padding: "3px 8px", fontSize: 10, fontWeight: 600,
+        display: "flex", alignItems: "center", gap: 4,
+        transition: "background 0.2s", fontFamily: "'Inter', sans-serif",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+    >
+      <span style={{ fontSize: 12 }}>🌐</span>
+      {LOCALE_LABELS[next]}
+    </button>
+  )
+}
+
+const containerStyle: React.CSSProperties = {
+  width: 320,
+  background: COLORS.bg,
+  backdropFilter: "blur(24px)",
+  WebkitBackdropFilter: "blur(24px)",
+  borderRadius: 16,
+  border: `1px solid ${COLORS.border}`,
+  boxShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  overflow: "hidden",
+  color: COLORS.text,
+}
+
+export const TrustSidebar = ({ data, loading }: { data: AnalysisData | null; loading: boolean }) => {
+  const [collapsed, setCollapsed] = useState(false)
+  const [locale, setLocale] = useState<Locale>(detectLocale)
+  const strings = t(locale)
+
   if (loading) {
     return (
-      <div className="w-80 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-gray-100 flex flex-col items-center justify-center min-h-[300px]">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-        />
-        <p className="text-gray-500 font-medium">Analyzing product...</p>
+      <div style={{
+        ...containerStyle,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: 300, gap: 16,
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: "50%",
+          border: "3px solid rgba(99, 102, 241, 0.15)", borderTopColor: COLORS.accent,
+          animation: "bibak-spin 0.8s linear infinite",
+        }} />
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, textAlign: "center", margin: 0 }}>
+            {strings.analyzing}
+          </p>
+          <p style={{ fontSize: 11, color: COLORS.textDim, textAlign: "center", margin: "4px 0 0" }}>
+            {strings.analyzingSub}
+          </p>
+        </div>
+        <style>{`@keyframes bibak-spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }
 
-  if (!data) return null;
+  if (!data) return null
+  const scoreColor = getScoreColor(data.trust_score)
 
-  const scoreColor = data.trust_score > 70 ? 'text-green-500' : data.trust_score > 40 ? 'text-yellow-500' : 'text-red-500'
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, x: 50 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden border border-gray-100 font-sans"
-    >
-      <div className="p-6 bg-gradient-to-b from-blue-50/50 to-transparent">
-        <div className="flex items-center gap-2 mb-6">
-          <ShieldCheck className="text-blue-600 w-6 h-6" />
-          <h2 className="text-xl font-bold text-gray-900 tracking-tight">BiBak</h2>
-        </div>
-
-        <div className="flex flex-col items-center mb-6">
-          <div className="relative w-32 h-32 flex items-center justify-center">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="64" cy="64" r="60" className="text-gray-100" strokeWidth="8" stroke="currentColor" fill="transparent" />
-              <motion.circle 
-                initial={{ strokeDasharray: "0, 400" }}
-                animate={{ strokeDasharray: `${(data.trust_score / 100) * 377}, 400` }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-                cx="64" cy="64" r="60" className={scoreColor} strokeWidth="8" stroke="currentColor" fill="transparent" strokeLinecap="round" 
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center">
-              <span className={`text-4xl font-black ${scoreColor}`}>{data.trust_score}</span>
-              <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Score</span>
-            </div>
+  if (collapsed) {
+    return (
+      <div
+        onClick={() => setCollapsed(false)}
+        style={{
+          width: 52, height: 52, borderRadius: 14,
+          background: COLORS.bg, backdropFilter: "blur(20px)",
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", transition: "transform 0.2s", fontFamily: "'Inter', sans-serif",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{data.trust_score}</div>
+          <div style={{ fontSize: 6, fontWeight: 600, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
+            {strings.score.toLowerCase()}
           </div>
         </div>
+      </div>
+    )
+  }
 
-        <div className="space-y-3">
-          {data.risk_flags?.map((flag: string, i: number) => (
-            <div key={i} className="flex items-start gap-3 p-3 bg-red-50 text-red-700 rounded-xl">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">{flag}</p>
-            </div>
-          ))}
+  return (
+    <div style={containerStyle}>
+      {/* Header */}
+      <div style={{
+        padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        borderBottom: `1px solid ${COLORS.border}`,
+        background: "linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 100%)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+            boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+          }}>🛡️</div>
+          <div>
+            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3 }}>BiBak</span>
+            <span style={{ fontSize: 9, color: COLORS.textDim, marginLeft: 6, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1 }}>
+              {strings.trustAnalysis}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <LanguageToggle locale={locale} onChange={setLocale} />
+          <button
+            onClick={() => setCollapsed(true)}
+            style={{
+              background: "rgba(255,255,255,0.05)", border: "none", color: COLORS.textDim,
+              cursor: "pointer", borderRadius: 6, width: 26, height: 26,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+              transition: "background 0.2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+          >✕</button>
         </div>
       </div>
-    </motion.div>
+
+      {/* Score Section */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 16px 16px" }}>
+        <ScoreRing score={data.trust_score} strings={strings} />
+      </div>
+
+      {/* Metrics */}
+      <div style={{ padding: "0 16px 16px" }}>
+        <MetricBar label={strings.reviewAuthenticity} value={data.review_authenticity_score} />
+        <MetricBar label={strings.priceIntegrity} value={data.price_integrity_score} />
+        <MetricBar label={strings.sellerReliability} value={data.seller_reliability_score} />
+      </div>
+
+      {/* Risk Flags */}
+      {data.risk_flags.length > 0 && (
+        <div style={{ padding: "0 16px 12px" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
+            ⚡ {strings.riskAlerts}
+          </div>
+          {data.risk_flags.map((flag, i) => <RiskFlag key={i} text={flag} />)}
+        </div>
+      )}
+
+      {/* Explanations */}
+      {data.explanations.length > 0 && (
+        <div style={{ padding: "0 16px 12px" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
+            {strings.analysis}
+          </div>
+          {data.explanations.map((exp, i) => <ExplanationCard key={i} text={exp} />)}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "center" }}>
+        <span style={{ fontSize: 9, color: "rgba(148,163,184,0.4)", fontWeight: 500 }}>{strings.poweredBy}</span>
+      </div>
+    </div>
   )
 }

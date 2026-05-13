@@ -1,5 +1,4 @@
-import cssText from "data-text:~style.css"
-import type { PlasmoCSConfig, PlasmoGetInlineStyle } from "plasmo"
+import type { PlasmoCSConfig, PlasmoGetShadowHostId } from "plasmo"
 import { TrustSidebar } from "~components/TrustSidebar"
 import { useEffect, useState } from "react"
 import { analyzeProduct } from "~api/client"
@@ -7,15 +6,20 @@ import { analyzeProduct } from "~api/client"
 export const config: PlasmoCSConfig = {
   matches: [
     "https://*.amazon.com/*",
+    "https://*.amazon.com.tr/*",
     "https://*.trendyol.com/*",
     "https://*.hepsiburada.com/*"
   ]
 }
 
-export const getInlineStyle: PlasmoGetInlineStyle = () => {
-  const element = document.createElement("style")
-  element.textContent = cssText
-  return element
+export const getShadowHostId: PlasmoGetShadowHostId = () => "bibak-sidebar-host"
+
+export const getStyle = () => {
+  const style = document.createElement("style")
+  style.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  `
+  return style
 }
 
 const PlasmoOverlay = () => {
@@ -23,12 +27,9 @@ const PlasmoOverlay = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const extractData = () => {
-      // Basic mock extraction - to be expanded in Phase 2
-      const title = document.title
-      const url = window.location.href
-      
-      // Call API
+    const extractAndAnalyze = () => {
+      const title = document.title || "Unknown Product"
+
       analyzeProduct({
         title,
         price: "$99.99",
@@ -44,11 +45,18 @@ const PlasmoOverlay = () => {
       })
     }
 
-    extractData()
+    // Small delay to let the page settle
+    setTimeout(extractAndAnalyze, 800)
   }, [])
 
   return (
-    <div className="fixed top-4 right-4 z-[2147483647]">
+    <div style={{
+      position: "fixed",
+      top: 16,
+      right: 16,
+      zIndex: 2147483647,
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    }}>
       <TrustSidebar data={data} loading={loading} />
     </div>
   )
