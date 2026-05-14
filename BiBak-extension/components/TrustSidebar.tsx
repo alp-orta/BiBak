@@ -1,17 +1,7 @@
 import React, { useEffect, useState } from "react"
-import { type Locale, type Translations, detectLocale, t, LOCALE_LABELS } from "~i18n/translations"
-import { analyzeProduct } from "~api/client"
+import { type Locale, type Translations, t, LOCALE_LABELS } from "~i18n/translations"
+import { analyzeProduct, type AnalysisData } from "~api/client"
 import type { ScrapedProduct } from "~scrapers"
-
-interface AnalysisData {
-  trust_score: number
-  review_authenticity_score: number
-  price_integrity_score: number
-  seller_reliability_score: number
-  risk_flags: string[]
-  explanations: string[]
-  safer_alternatives: string[]
-}
 
 const COLORS = {
   bg: "rgba(15, 17, 23, 0.95)",
@@ -24,6 +14,17 @@ const COLORS = {
   yellow: "#EAB308",
   red: "#EF4444",
   orange: "#F97316",
+}
+
+const LOCALE_STORAGE_KEY = "bibak-locale"
+
+function getInitialLocale(): Locale {
+  try {
+    const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
+    return stored === "en" || stored === "tr" ? stored : "tr"
+  } catch {
+    return "tr"
+  }
 }
 
 function getScoreColor(score: number) {
@@ -140,6 +141,29 @@ function ExplanationCard({ text }: { text: string }) {
   )
 }
 
+function StatusNotice({ source, warnings, strings }: { source?: string; warnings?: string[]; strings: Translations }) {
+  if (source !== "fallback" && (!warnings || warnings.length === 0)) return null
+
+  const isFallback = source === "fallback"
+  const message = isFallback
+    ? strings.localFallbackNotice
+    : strings.limitedDataNotice
+
+  return (
+    <div style={{
+      margin: "0 16px 12px", padding: "10px 12px",
+      background: isFallback ? "rgba(234, 179, 8, 0.08)" : "rgba(99, 102, 241, 0.06)",
+      border: `1px solid ${isFallback ? "rgba(234, 179, 8, 0.18)" : "rgba(99, 102, 241, 0.12)"}`,
+      borderRadius: 10,
+      color: isFallback ? "#FDE68A" : COLORS.textDim,
+      fontSize: 11,
+      lineHeight: 1.4
+    }}>
+      {message}
+    </div>
+  )
+}
+
 function LanguageToggle({ locale, onChange }: { locale: Locale; onChange: (l: Locale) => void }) {
   const next: Locale = locale === "tr" ? "en" : "tr"
   return (
@@ -176,10 +200,19 @@ const containerStyle: React.CSSProperties = {
 
 export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: ScrapedProduct | null, scrapeError: string | null }) => {
   const [collapsed, setCollapsed] = useState(false)
-  const [locale, setLocale] = useState<Locale>(detectLocale)
+  const [locale, setLocale] = useState<Locale>(getInitialLocale)
   const [data, setData] = useState<AnalysisData | null>(null)
   const [loading, setLoading] = useState(true)
   const strings = t(locale)
+
+  const handleLocaleChange = (nextLocale: Locale) => {
+    setLocale(nextLocale)
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale)
+    } catch {
+      // Ignore storage failures in restricted browser contexts.
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -308,7 +341,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <LanguageToggle locale={locale} onChange={setLocale} />
+          <LanguageToggle locale={locale} onChange={handleLocaleChange} />
           <button
             onClick={() => setCollapsed(true)}
             style={{
@@ -346,6 +379,8 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         <MetricBar label={strings.priceIntegrity} value={data.price_integrity_score} />
         <MetricBar label={strings.sellerReliability} value={data.seller_reliability_score} />
       </div>
+
+      <StatusNotice source={data.source} warnings={data.warnings} strings={strings} />
 
       {/* Risk Flags */}
       {data.risk_flags.length > 0 && (

@@ -14,6 +14,8 @@ export interface Translations {
   sellerReliability: string
   riskAlerts: string
   analysis: string
+  localFallbackNotice: string
+  limitedDataNotice: string
   poweredBy: string
   language: string
 }
@@ -32,6 +34,8 @@ const tr: Translations = {
   sellerReliability: "Satıcı Güvenilirliği",
   riskAlerts: "Risk Uyarıları",
   analysis: "Analiz",
+  localFallbackNotice: "API'ye ulaşılamadı; bu sonuç sınırlı yerel analizle üretildi.",
+  limitedDataNotice: "Yorum verisi sınırlı olduğu için sonuç daha temkinli değerlendirilmelidir.",
   poweredBy: "BiBak AI tarafından desteklenmektedir · v1.0",
   language: "Dil",
 }
@@ -50,6 +54,8 @@ const en: Translations = {
   sellerReliability: "Seller Reliability",
   riskAlerts: "Risk Alerts",
   analysis: "Analysis",
+  localFallbackNotice: "The API was unavailable; this result was generated with limited local analysis.",
+  limitedDataNotice: "Review data is limited, so this result should be treated cautiously.",
   poweredBy: "Powered by BiBak AI · v1.0",
   language: "Language",
 }
@@ -58,8 +64,8 @@ const locales: Record<Locale, Translations> = { tr, en }
 
 export function detectLocale(): Locale {
   const lang = (navigator.language || navigator.languages?.[0] || "").toLowerCase()
-  if (lang.startsWith("tr")) return "tr"
-  return "en"
+  if (lang.startsWith("en")) return "en"
+  return "tr"
 }
 
 export function t(locale: Locale): Translations {

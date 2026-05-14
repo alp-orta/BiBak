@@ -10,6 +10,18 @@ export interface ProductData {
   locale?: string
 }
 
+export interface AnalysisData {
+  trust_score: number
+  review_authenticity_score: number
+  price_integrity_score: number
+  seller_reliability_score: number
+  risk_flags: string[]
+  explanations: string[]
+  safer_alternatives: string[]
+  source?: "api" | "fallback"
+  warnings?: string[]
+}
+
 const FALLBACK_TEXT = {
   tr: {
     backendUnavailable: "Yerel analiz kullanildi; ayrintili API analizi su anda ulasilamiyor.",
@@ -39,7 +51,7 @@ function normalizeReview(text: string) {
     .trim()
 }
 
-function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en") {
+function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): AnalysisData {
   const strings = FALLBACK_TEXT[locale]
   const normalizedReviews = data.reviews.map(normalizeReview).filter(Boolean)
   const uniqueReviews = new Set(normalizedReviews)
@@ -93,11 +105,13 @@ function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en") {
     seller_reliability_score: clamp(sellerReliability),
     risk_flags: riskFlags,
     explanations,
-    safer_alternatives: []
+    safer_alternatives: [],
+    source: "fallback",
+    warnings: ["backend_unavailable"]
   }
 }
 
-export const analyzeProduct = async (data: ProductData) => {
+export const analyzeProduct = async (data: ProductData): Promise<AnalysisData> => {
   const locale = (data.locale || detectLocale()) as "tr" | "en"
   const payload = { ...data, locale }
 

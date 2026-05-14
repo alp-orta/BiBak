@@ -1,4 +1,5 @@
 from review_analyzer import analyze_reviews
+from models.api_models import ProductRequest
 import re
 
 
@@ -79,31 +80,8 @@ def _normalize_review(text: str) -> str:
     return " ".join((text or "").lower().split())
 
 
-def _coerce_float(value: object, default: float = 0.0) -> float:
-    try:
-        return float(value or default)
-    except (TypeError, ValueError):
-        return default
-
-
 def _normalize_product(product: dict) -> dict:
-    reviews = product.get("reviews", [])
-    if not isinstance(reviews, list):
-        reviews = []
-
-    locale = product.get("locale", "tr")
-    if locale not in ("tr", "en"):
-        locale = "tr"
-
-    return {
-        **product,
-        "title": str(product.get("title", "") or ""),
-        "price": str(product.get("price", "") or "").strip(),
-        "seller": str(product.get("seller", "") or "").strip(),
-        "reviews": [review.strip() for review in reviews if isinstance(review, str) and review.strip()],
-        "rating": _coerce_float(product.get("rating", 0.0)),
-        "locale": locale,
-    }
+    return ProductRequest.from_dict(product).to_dict()
 
 
 NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
@@ -308,6 +286,8 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
         "explanations": explanations,
         "safer_alternatives": [],
         "review_analysis": None,
+        "source": "fallback",
+        "warnings": ["ml_pipeline_failed"],
     }
 
 
@@ -331,6 +311,8 @@ def analyze_product_data(product: dict) -> dict:
             ],
             "safer_alternatives": [],
             "review_analysis": None,
+            "source": "api",
+            "warnings": ["limited_review_data"],
         }
 
     try:
@@ -380,4 +362,6 @@ def analyze_product_data(product: dict) -> dict:
             "cluster_data": analysis["cluster_data"],
             "review_scores": analysis["review_scores"],
         },
+        "source": "api",
+        "warnings": [],
     }
