@@ -16,6 +16,15 @@ export interface Translations {
   analysis: string
   localFallbackNotice: string
   limitedDataNotice: string
+  extractionWarningNotice: string
+  productContext: string
+  price: string
+  seller: string
+  rating: string
+  reviewsUsed: string
+  extractionConfidence: string
+  missingData: string
+  notAvailable: string
   poweredBy: string
   language: string
 }
@@ -36,6 +45,15 @@ const tr: Translations = {
   analysis: "Analiz",
   localFallbackNotice: "API'ye ulaşılamadı; bu sonuç sınırlı yerel analizle üretildi.",
   limitedDataNotice: "Yorum verisi sınırlı olduğu için sonuç daha temkinli değerlendirilmelidir.",
+  extractionWarningNotice: "Ürün sayfasından alınan veri eksik olabilir; sonuç bu sınıra göre yorumlanmalıdır.",
+  productContext: "Ürün",
+  price: "Fiyat",
+  seller: "Satıcı",
+  rating: "Puan",
+  reviewsUsed: "Yorum",
+  extractionConfidence: "Veri güveni",
+  missingData: "Eksik veri",
+  notAvailable: "Yok",
   poweredBy: "BiBak AI tarafından desteklenmektedir · v1.0",
   language: "Dil",
 }
@@ -56,6 +74,15 @@ const en: Translations = {
   analysis: "Analysis",
   localFallbackNotice: "The API was unavailable; this result was generated with limited local analysis.",
   limitedDataNotice: "Review data is limited, so this result should be treated cautiously.",
+  extractionWarningNotice: "Some product-page data may be incomplete, so the result should be read with that limit in mind.",
+  productContext: "Product",
+  price: "Price",
+  seller: "Seller",
+  rating: "Rating",
+  reviewsUsed: "Reviews",
+  extractionConfidence: "Data confidence",
+  missingData: "Missing data",
+  notAvailable: "N/A",
   poweredBy: "Powered by BiBak AI · v1.0",
   language: "Language",
 }

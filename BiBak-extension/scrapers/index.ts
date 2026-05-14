@@ -5,6 +5,34 @@ export interface ScrapedProduct {
   reviews: string[];
   rating: number;
   platform: "trendyol" | "hepsiburada" | "amazon" | "unknown";
+  metadata?: ScrapeMetadata;
+}
+
+export type ScrapeSource =
+  | "dom"
+  | "structured_data"
+  | "trendyol_detailed_api"
+  | "trendyol_review_api"
+  | "trendyol_review_page"
+  | "fallback";
+
+export type MissingProductField = "title" | "price" | "seller" | "rating" | "reviews";
+
+export type ScrapeWarning =
+  | "missing_title"
+  | "missing_price"
+  | "missing_seller"
+  | "missing_rating"
+  | "low_review_count"
+  | "no_reviews";
+
+export interface ScrapeMetadata {
+  productId?: string;
+  source: ScrapeSource;
+  confidence: number;
+  reviewCount: number;
+  missingFields: MissingProductField[];
+  warnings: ScrapeWarning[];
 }
 
 export interface Scraper {
@@ -34,7 +62,14 @@ export async function scrapeCurrentPage(): Promise<ScrapedProduct> {
       seller: "N/A",
       reviews: [],
       rating: 0,
-      platform: "unknown"
+      platform: "unknown",
+      metadata: {
+        source: "fallback",
+        confidence: 20,
+        reviewCount: 0,
+        missingFields: ["price", "seller", "rating", "reviews"],
+        warnings: ["missing_price", "missing_seller", "missing_rating", "no_reviews"]
+      }
     };
   }
 

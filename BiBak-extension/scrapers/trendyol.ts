@@ -1,4 +1,4 @@
-import { ScrapedProduct, Scraper } from "./index";
+import { ScrapedProduct, Scraper, type MissingProductField, type ScrapeMetadata, type ScrapeSource, type ScrapeWarning } from "./index";
 import { queryAll, extractText, extractNumber, waitForElement } from "./utils";
 
 const SELECTORS = {
@@ -41,6 +41,7 @@ const REVIEW_API_BASE = "https://public-mdc.trendyol.com/discovery-web-socialgw-
 const REVIEW_DETAIL_API_BASE = "https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed";
 const PRICE_PATTERN = /(?:₺\s*[\d.]+(?:,\d{2})?|[\d.]+(?:,\d{2})?\s*(?:TL|₺))/i;
 const TARGET_REVIEW_COUNT = 100;
+const LOW_REVIEW_COUNT_THRESHOLD = 5;
 
 type ReviewApiPayload = {
   rating?: number;
@@ -561,6 +562,84 @@ function extractReviewsFromDom(): string[] {
   return uniqueTexts(texts);
 }
 
+function resolveReviewSource(
+  detailedReviewPayload: DetailedReviewApiPayload,
+  reviewApiPayload: ReviewApiPayload,
+  reviewDetailPayload: ReviewDetailPayload,
+  reviews: string[]
+): ScrapeSource {
+  if (detailedReviewPayload.reviews.length > 0) {
+    return "trendyol_detailed_api";
+  }
+
+  if (reviewApiPayload.reviews.length > 0) {
+    return "trendyol_review_api";
+  }
+
+  if (reviewDetailPayload.reviews.length > 0) {
+    return "trendyol_review_page";
+  }
+
+  return reviews.length > 0 ? "dom" : "fallback";
+}
+
+function buildMetadata(product: Omit<ScrapedProduct, "metadata">, productId: string | null, source: ScrapeSource): ScrapeMetadata {
+  const missingFields: MissingProductField[] = [];
+  const warnings: ScrapeWarning[] = [];
+
+  if (!product.title) {
+    missingFields.push("title");
+    warnings.push("missing_title");
+  }
+
+  if (!product.price || product.price === "N/A") {
+    missingFields.push("price");
+    warnings.push("missing_price");
+  }
+
+  if (!product.seller || product.seller === "N/A") {
+    missingFields.push("seller");
+    warnings.push("missing_seller");
+  }
+
+  if (!product.rating) {
+    missingFields.push("rating");
+    warnings.push("missing_rating");
+  }
+
+  if (product.reviews.length === 0) {
+    missingFields.push("reviews");
+    warnings.push("no_reviews");
+  } else if (product.reviews.length < LOW_REVIEW_COUNT_THRESHOLD) {
+    warnings.push("low_review_count");
+  }
+
+  const sourceScore: Record<ScrapeSource, number> = {
+    structured_data: 88,
+    trendyol_detailed_api: 92,
+    trendyol_review_api: 82,
+    trendyol_review_page: 76,
+    dom: 68,
+    fallback: 35
+  };
+  const reviewScore = Math.min(product.reviews.length, 20) * 1.5;
+  const missingPenalty = missingFields.length * 12;
+  const lowReviewPenalty = product.reviews.length > 0 && product.reviews.length < LOW_REVIEW_COUNT_THRESHOLD ? 8 : 0;
+  const confidence = Math.max(
+    0,
+    Math.min(100, Math.round(sourceScore[source] + reviewScore - missingPenalty - lowReviewPenalty))
+  );
+
+  return {
+    productId: productId ?? undefined,
+    source,
+    confidence,
+    reviewCount: product.reviews.length,
+    missingFields,
+    warnings
+  };
+}
+
 export class TrendyolScraper implements Scraper {
   canHandle(url: string): boolean {
     return url.includes("trendyol.com");
@@ -595,14 +674,20 @@ export class TrendyolScraper implements Scraper {
           ? reviewDetailPayload.reviews
           : extractReviewsFromDom();
     const rating = reviewApiPayload.rating || reviewDetailPayload.rating || extractRatingFromDom();
+    const source = resolveReviewSource(detailedReviewPayload, reviewApiPayload, reviewDetailPayload, reviews);
 
-    const scraped: ScrapedProduct = {
+    const product = {
       title,
       price: price || "N/A",
       seller: seller || "N/A",
       reviews,
       rating,
       platform: "trendyol"
+    } satisfies Omit<ScrapedProduct, "metadata">;
+
+    const scraped: ScrapedProduct = {
+      ...product,
+      metadata: buildMetadata(product, productId, source)
     };
 
     console.log("[BiBak] Scraped Trendyol data:", {
@@ -611,6 +696,7 @@ export class TrendyolScraper implements Scraper {
       seller: scraped.seller,
       rating: scraped.rating,
       reviewsCount: scraped.reviews.length,
+      metadata: scraped.metadata,
       reviewSample: scraped.reviews.slice(0, 3)
     });
 

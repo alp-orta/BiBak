@@ -164,6 +164,102 @@ function StatusNotice({ source, warnings, strings }: { source?: string; warnings
   )
 }
 
+function getFieldLabel(field: string, strings: Translations) {
+  const labels: Record<string, string> = {
+    title: strings.productContext,
+    price: strings.price,
+    seller: strings.seller,
+    rating: strings.rating,
+    reviews: strings.reviewsUsed
+  }
+
+  return labels[field] ?? field
+}
+
+function ProductContext({ product, strings }: { product: ScrapedProduct; strings: Translations }) {
+  const metadata = product.metadata
+  const title = product.title || strings.notAvailable
+  const seller = product.seller && product.seller !== "N/A" ? product.seller : strings.notAvailable
+  const reviewCount = metadata?.reviewCount ?? product.reviews.length
+  const confidence = metadata?.confidence ?? null
+  const missingFields = metadata?.missingFields ?? []
+  const hasExtractionWarning = (metadata?.warnings.length ?? 0) > 0
+
+  return (
+    <div style={{ padding: "12px 16px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 10, color: COLORS.textDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2 }}>
+          {strings.productContext}
+        </span>
+        <span style={{
+          fontSize: 10, color: "#FDE68A", background: "rgba(234,179,8,0.08)",
+          border: "1px solid rgba(234,179,8,0.16)", borderRadius: 999, padding: "3px 7px",
+          fontWeight: 700, textTransform: "capitalize"
+        }}>
+          {product.platform}
+        </span>
+      </div>
+
+      <div style={{
+        fontSize: 13, color: COLORS.text, fontWeight: 700, lineHeight: 1.35,
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+        marginBottom: 10
+      }}>
+        {title}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 9, color: COLORS.textDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+            {strings.seller}
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {seller}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: COLORS.textDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+            {strings.reviewsUsed}
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.text, fontWeight: 700 }}>
+            {reviewCount}
+          </div>
+        </div>
+        {confidence !== null && (
+          <div>
+            <div style={{ fontSize: 9, color: COLORS.textDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+              {strings.extractionConfidence}
+            </div>
+            <div style={{ fontSize: 11, color: getScoreColor(confidence), fontWeight: 700 }}>
+              {confidence}%
+            </div>
+          </div>
+        )}
+        {missingFields.length > 0 && (
+          <div>
+            <div style={{ fontSize: 9, color: COLORS.textDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+              {strings.missingData}
+            </div>
+            <div style={{ fontSize: 11, color: "#FDE68A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {missingFields.map((field) => getFieldLabel(field, strings)).join(", ")}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hasExtractionWarning && (
+        <div style={{
+          marginTop: 10, padding: "8px 10px", borderRadius: 8,
+          background: "rgba(234, 179, 8, 0.08)", border: "1px solid rgba(234, 179, 8, 0.16)",
+          color: "#FDE68A", fontSize: 10.5, lineHeight: 1.4
+        }}>
+          {strings.extractionWarningNotice}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LanguageToggle({ locale, onChange }: { locale: Locale; onChange: (l: Locale) => void }) {
   const next: Locale = locale === "tr" ? "en" : "tr"
   return (
@@ -355,6 +451,8 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           >✕</button>
         </div>
       </div>
+
+      {scrapedData && <ProductContext product={scrapedData} strings={strings} />}
 
       {/* Score Section */}
       <div style={{ 
