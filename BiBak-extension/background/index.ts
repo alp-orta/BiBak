@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "~api/config";
+
 type AnalyzeRequest = {
   type: "analyze-product";
   payload: unknown;
@@ -10,7 +12,7 @@ chrome.runtime.onMessage.addListener((message: AnalyzeRequest, _sender, sendResp
 
   void (async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/analyze-product", {
+      const response = await fetch(`${API_BASE_URL}/analyze-product`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

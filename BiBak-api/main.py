@@ -14,7 +14,10 @@ CORS(flask_app)
 
 @flask_app.route('/analyze-product', methods=['POST'])
 def analyze_product():
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
     result = analyze_product_data(data)
     return jsonify(result)
 

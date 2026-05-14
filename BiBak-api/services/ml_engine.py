@@ -79,6 +79,33 @@ def _normalize_review(text: str) -> str:
     return " ".join((text or "").lower().split())
 
 
+def _coerce_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_product(product: dict) -> dict:
+    reviews = product.get("reviews", [])
+    if not isinstance(reviews, list):
+        reviews = []
+
+    locale = product.get("locale", "tr")
+    if locale not in ("tr", "en"):
+        locale = "tr"
+
+    return {
+        **product,
+        "title": str(product.get("title", "") or ""),
+        "price": str(product.get("price", "") or "").strip(),
+        "seller": str(product.get("seller", "") or "").strip(),
+        "reviews": [review.strip() for review in reviews if isinstance(review, str) and review.strip()],
+        "rating": _coerce_float(product.get("rating", 0.0)),
+        "locale": locale,
+    }
+
+
 NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
 PACKAGING_TERMS = (
@@ -230,10 +257,10 @@ def _build_review_explanations(
 
 def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
     flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])
-    reviews = [r for r in product.get("reviews", []) if isinstance(r, str) and r.strip()]
-    rating = float(product.get("rating", 0.0) or 0.0)
-    seller = str(product.get("seller", "") or "").strip()
-    price = str(product.get("price", "") or "").strip()
+    reviews = product["reviews"]
+    rating = product["rating"]
+    seller = product["seller"]
+    price = product["price"]
     has_price = bool(price and price != "N/A")
     has_seller = bool(seller and seller != "N/A")
 
@@ -285,13 +312,10 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
 
 
 def analyze_product_data(product: dict) -> dict:
-    reviews = product.get("reviews", [])
-    title = product.get("title", "")
-    rating = product.get("rating", 0.0)
-    locale = product.get("locale", "tr")
-
-    if locale not in ("tr", "en"):
-        locale = "tr"
+    product = _normalize_product(product)
+    reviews = product["reviews"]
+    rating = product["rating"]
+    locale = product["locale"]
 
     if not reviews or len(reviews) < 2:
         flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])

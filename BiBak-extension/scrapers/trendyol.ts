@@ -611,7 +611,7 @@ export class TrendyolScraper implements Scraper {
       seller: scraped.seller,
       rating: scraped.rating,
       reviewsCount: scraped.reviews.length,
-      reviewSample: scraped.reviews.slice(0, 99)
+      reviewSample: scraped.reviews.slice(0, 3)
     });
 
     if (!scraped.title && scraped.reviews.length === 0) {

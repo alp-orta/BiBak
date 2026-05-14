@@ -1,6 +1,5 @@
 import { detectLocale } from "~i18n/translations"
-
-const API_URL = "http://127.0.0.1:8000"
+import { API_BASE_URL } from "./config"
 
 export interface ProductData {
   title: string
@@ -116,7 +115,7 @@ export const analyzeProduct = async (data: ProductData) => {
       throw new Error(result?.error || "Background analysis failed")
     }
 
-    const response = await fetch(`${API_URL}/analyze-product`, {
+    const response = await fetch(`${API_BASE_URL}/analyze-product`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

@@ -1,13 +1,19 @@
 export function waitForElement(selector: string, timeout = 5000): Promise<Element | null> {
   return new Promise((resolve) => {
-    if (document.querySelector(selector)) {
-      return resolve(document.querySelector(selector));
+    const existing = document.querySelector(selector);
+    if (existing) {
+      return resolve(existing);
+    }
+
+    if (!document.body) {
+      return resolve(null);
     }
 
     const observer = new MutationObserver(() => {
-      if (document.querySelector(selector)) {
+      const element = document.querySelector(selector);
+      if (element) {
         observer.disconnect();
-        resolve(document.querySelector(selector));
+        resolve(element);
       }
     });
 
