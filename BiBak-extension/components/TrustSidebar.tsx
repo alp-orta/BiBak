@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { type Locale, type Translations, detectLocale, t, LOCALE_LABELS } from "~i18n/translations"
+import { analyzeProduct } from "~api/client"
+import type { ScrapedProduct } from "~scrapers"
 
 interface AnalysisData {
   trust_score: number
@@ -74,7 +76,7 @@ function ScoreRing({ score, strings, size = 130 }: { score: number; strings: Tra
           transform="rotate(-90 60 60)"
           style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)", filter: `drop-shadow(0 0 8px ${color}80)` }}
         />
-        <circle cx="60" cy="60" r="40" fill="none" stroke={color} strokeWidth="0.5" opacity="0.15" />
+        <circle cx="60" cy="60" r={40} fill="none" stroke={color} strokeWidth="0.5" opacity="0.15" />
       </svg>
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
@@ -172,12 +174,65 @@ const containerStyle: React.CSSProperties = {
   color: COLORS.text,
 }
 
-export const TrustSidebar = ({ data, loading }: { data: AnalysisData | null; loading: boolean }) => {
+export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: ScrapedProduct | null, scrapeError: string | null }) => {
   const [collapsed, setCollapsed] = useState(false)
   const [locale, setLocale] = useState<Locale>(detectLocale)
+  const [data, setData] = useState<AnalysisData | null>(null)
+  const [loading, setLoading] = useState(true)
   const strings = t(locale)
 
-  if (loading) {
+  useEffect(() => {
+    const fetchData = async () => {
+      if (scrapeError) {
+        setLoading(false)
+        return
+      }
+      
+      if (!scrapedData) {
+        setLoading(true)
+        return
+      }
+
+      setLoading(true)
+      try {
+        const res = await analyzeProduct({
+          title: scrapedData.title,
+          price: scrapedData.price,
+          seller: scrapedData.seller,
+          reviews: scrapedData.reviews,
+          rating: scrapedData.rating,
+          locale
+        })
+        setData(res)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [locale, scrapedData, scrapeError])
+
+  if (scrapeError) {
+    return (
+      <div style={{
+        ...containerStyle,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: 200, gap: 16, padding: 20, textAlign: "center"
+      }}>
+        <div style={{ fontSize: 32 }}>⚠️</div>
+        <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.red, margin: 0 }}>
+          Veri Çekilemedi / Could not extract data
+        </p>
+        <p style={{ fontSize: 11, color: COLORS.textDim, margin: 0 }}>
+          {scrapeError}
+        </p>
+      </div>
+    )
+  }
+
+  if (loading && !data) {
     return (
       <div style={{
         ...containerStyle,
@@ -269,8 +324,20 @@ export const TrustSidebar = ({ data, loading }: { data: AnalysisData | null; loa
       </div>
 
       {/* Score Section */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 16px 16px" }}>
+      <div style={{ 
+        display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 16px 16px",
+        position: "relative" 
+      }}>
         <ScoreRing score={data.trust_score} strings={strings} />
+        {loading && (
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(15,17,23,0.4)", display: "flex", alignItems: "center", justifyContent: "center",
+            borderRadius: 16, zIndex: 10
+          }}>
+            <div style={{ width: 20, height: 20, border: "2px solid #6366F1", borderTopColor: "transparent", borderRadius: "50%", animation: "bibak-spin 0.6s linear infinite" }} />
+          </div>
+        )}
       </div>
 
       {/* Metrics */}

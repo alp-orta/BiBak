@@ -1,7 +1,7 @@
 import type { PlasmoCSConfig, PlasmoGetShadowHostId } from "plasmo"
 import { TrustSidebar } from "~components/TrustSidebar"
 import { useEffect, useState } from "react"
-import { analyzeProduct } from "~api/client"
+import { scrapeCurrentPage, type ScrapedProduct } from "~scrapers"
 
 export const config: PlasmoCSConfig = {
   matches: [
@@ -23,30 +23,13 @@ export const getStyle = () => {
 }
 
 const PlasmoOverlay = () => {
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [scrapedData, setScrapedData] = useState<ScrapedProduct | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const extractAndAnalyze = () => {
-      const title = document.title || "Unknown Product"
-
-      analyzeProduct({
-        title,
-        price: "$99.99",
-        seller: "Mock Seller",
-        reviews: ["Great product!", "Horrible, fake!"],
-        rating: 4.5
-      }).then(res => {
-        setData(res)
-        setLoading(false)
-      }).catch(err => {
-        console.error("BiBak API Error", err)
-        setLoading(false)
-      })
-    }
-
-    // Small delay to let the page settle
-    setTimeout(extractAndAnalyze, 800)
+    scrapeCurrentPage()
+      .then(data => setScrapedData(data))
+      .catch(err => setError(err.message || "Failed to scrape page"))
   }, [])
 
   return (
@@ -57,7 +40,7 @@ const PlasmoOverlay = () => {
       zIndex: 2147483647,
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }}>
-      <TrustSidebar data={data} loading={loading} />
+      <TrustSidebar scrapedData={scrapedData} scrapeError={error} />
     </div>
   )
 }

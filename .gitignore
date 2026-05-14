@@ -1,3 +1,8 @@
+node_modules/
+.plasmo/
+build/
+__pycache__/
+venv/
+*.pyc
 .env
-BiBak-extension/node_modules
-BiBak-api/venv
+.DS_Store

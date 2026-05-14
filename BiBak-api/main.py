@@ -1,16 +1,26 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from services.ml_engine import analyze_product_data
-import logging
 
-app = Flask(__name__)
-CORS(app)
+try:
+    from uvicorn.middleware.wsgi import WSGIMiddleware
+except ImportError:
+    WSGIMiddleware = None
 
-@app.route('/analyze-product', methods=['POST'])
+
+flask_app = Flask(__name__)
+CORS(flask_app)
+
+
+@flask_app.route('/analyze-product', methods=['POST'])
 def analyze_product():
     data = request.json
     result = analyze_product_data(data)
     return jsonify(result)
 
+
+app = WSGIMiddleware(flask_app) if WSGIMiddleware is not None else flask_app
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    flask_app.run(host='0.0.0.0', port=8000, debug=True)

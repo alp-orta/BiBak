@@ -57,8 +57,9 @@ const en: Translations = {
 const locales: Record<Locale, Translations> = { tr, en }
 
 export function detectLocale(): Locale {
-  const lang = navigator.language || navigator.languages?.[0] || "en"
-  return lang.startsWith("tr") ? "tr" : "en"
+  const lang = (navigator.language || navigator.languages?.[0] || "").toLowerCase()
+  if (lang.startsWith("tr")) return "tr"
+  return "en"
 }
 
 export function t(locale: Locale): Translations {
