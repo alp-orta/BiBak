@@ -1,4 +1,4 @@
-import { ScrapedProduct, Scraper, type MissingProductField, type ScrapeMetadata, type ScrapeSource, type ScrapeWarning } from "./index";
+import { ScrapedProduct, Scraper, type ExternalPriceHistory, type MissingProductField, type ScrapeMetadata, type ScrapeSource, type ScrapeWarning } from "./index";
 import { queryAll, extractText, extractNumber, waitForElement } from "./utils";
 
 const SELECTORS = {
@@ -9,6 +9,10 @@ const SELECTORS = {
     "meta[property='og:title']"
   ],
   price: [
+    ".prc-dsc",
+    ".prc-box-dscntd",
+    ".pr-bx-nm .prc-dsc",
+    ".price-information .prc-dsc",
     "[data-testid='price-current-price']",
     "[data-testid*='price']",
     "[class*='price']",
@@ -39,6 +43,7 @@ const SELECTORS = {
 
 const REVIEW_API_BASE = "https://public-mdc.trendyol.com/discovery-web-socialgw-service/api/review";
 const REVIEW_DETAIL_API_BASE = "https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed";
+const PRICE_HISTORY_API_BASE = "https://apigw.trendyol.com/discovery-pdp-websfxpricehistory-santral/price-history";
 const PRICE_PATTERN = /(?:₺\s*[\d.]+(?:,\d{2})?|[\d.]+(?:,\d{2})?\s*(?:TL|₺))/i;
 const TARGET_REVIEW_COUNT = 100;
 const LOW_REVIEW_COUNT_THRESHOLD = 5;
@@ -99,6 +104,10 @@ type ReviewDetailPageProps = {
   };
 };
 
+type TrendyolPriceHistoryResponse = {
+  prices?: Record<string, number>;
+};
+
 function getWindowProps<T>(name: string): T | null {
   return ((window as unknown) as Record<string, T | undefined>)[`__${name}__PROPS`] ?? null;
 }
@@ -106,6 +115,78 @@ function getWindowProps<T>(name: string): T | null {
 function extractProductIdFromUrl(url: string): string | null {
   const match = url.match(/-p-(\d+)/i);
   return match?.[1] ?? null;
+}
+
+function addUniqueListingId(values: string[], listingId: unknown): void {
+  if (typeof listingId === "string" && listingId && !values.includes(listingId)) {
+    values.push(listingId);
+  }
+}
+
+function findListingIdsInPayload(payload: unknown, productId: string | null, seen = new Set<unknown>()): string[] {
+  if (!payload || typeof payload !== "object" || seen.has(payload)) {
+    return [];
+  }
+  seen.add(payload);
+
+  const listingIds: string[] = [];
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      findListingIdsInPayload(entry, productId, seen).forEach((listingId) => addUniqueListingId(listingIds, listingId));
+    }
+    return listingIds;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const winnerVariant = record.winnerVariant;
+  if (winnerVariant && typeof winnerVariant === "object") {
+    addUniqueListingId(listingIds, (winnerVariant as Record<string, unknown>).listingId);
+  }
+
+  const url = typeof record.url === "string" ? record.url : "";
+  const listingId = record.listingId;
+  if (typeof listingId === "string" && listingId && (!productId || url.includes(`p-${productId}`) || !url)) {
+    addUniqueListingId(listingIds, listingId);
+  }
+
+  for (const value of Object.values(record)) {
+    findListingIdsInPayload(value, productId, seen).forEach((id) => addUniqueListingId(listingIds, id));
+  }
+
+  return listingIds;
+}
+
+function extractListingIdsFromScripts(productId: string | null): string[] {
+  const scriptTexts = Array.from(document.scripts)
+    .map((script) => script.textContent || "")
+    .filter((text) => text.includes("listingId"));
+  const listingIds: string[] = [];
+
+  for (const text of scriptTexts) {
+    if (productId) {
+      const aroundProduct = text.match(new RegExp(`.{0,1800}p-${productId}.{0,1800}`, "s"))?.[0] ?? "";
+      const nearbyListing = aroundProduct.match(/"listingId":"([^"]+)"/);
+      addUniqueListingId(listingIds, nearbyListing?.[1]);
+    }
+
+    const winnerListing = text.match(/"winnerVariant":\{[^}]*"listingId":"([^"]+)"/);
+    addUniqueListingId(listingIds, winnerListing?.[1]);
+
+    Array.from(text.matchAll(/"listingId":"([^"]+)"/g)).forEach((match) => {
+      addUniqueListingId(listingIds, match[1]);
+    });
+  }
+
+  return listingIds;
+}
+
+function extractListingIds(productId: string | null): string[] {
+  const listingIds: string[] = [];
+  const props = getWindowProps<Record<string, unknown>>("envoy_product-info");
+  findListingIdsInPayload(props, productId).forEach((listingId) => addUniqueListingId(listingIds, listingId));
+  extractListingIdsFromScripts(productId).forEach((listingId) => addUniqueListingId(listingIds, listingId));
+
+  return listingIds;
 }
 
 function cleanTitle(title: string): string {
@@ -244,11 +325,25 @@ function getMerchantFromPageScripts(): string {
   return "";
 }
 
+function isVisibleElement(element: Element): boolean {
+  const style = window.getComputedStyle(element);
+  if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
 function getVisibleCandidates(selectors: string[]): string[] {
   const texts = new Set<string>();
 
   for (const selector of selectors) {
     document.querySelectorAll(selector).forEach((element) => {
+      if (!isVisibleElement(element)) {
+        return;
+      }
+
       const text = extractText(element);
       if (text) {
         texts.add(text);
@@ -260,7 +355,23 @@ function getVisibleCandidates(selectors: string[]): string[] {
 }
 
 function pickPrice(candidates: string[]): string {
-  return candidates.find((candidate) => PRICE_PATTERN.test(candidate)) ?? "";
+  for (const candidate of candidates) {
+    if (/\b(?:kupon|coupon|kazan)\b/i.test(candidate)) {
+      continue;
+    }
+
+    const matches = Array.from(candidate.matchAll(new RegExp(PRICE_PATTERN.source, "gi")));
+    const productPriceMatches = matches.filter((item) => {
+      const end = (item.index ?? 0) + item[0].length;
+      return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.slice(end, end + 32));
+    });
+    const selected = productPriceMatches.at(-1)?.[0]?.trim();
+    if (selected) {
+      return selected;
+    }
+  }
+
+  return "";
 }
 
 function pickSeller(candidates: string[]): string {
@@ -380,6 +491,54 @@ async function fetchReviewApiPayload(productId: string): Promise<ReviewApiPayloa
   }
 }
 
+async function fetchPriceHistoryPayload(
+  listingIds: string[],
+  contentId: string | null
+): Promise<ExternalPriceHistory | undefined> {
+  if (listingIds.length === 0 || !contentId) {
+    return undefined;
+  }
+
+  for (const listingId of listingIds.slice(0, 12)) {
+    try {
+      const url = new URL(PRICE_HISTORY_API_BASE);
+      url.searchParams.set("listingId", listingId);
+      url.searchParams.set("contentId", contentId);
+      url.searchParams.set("culture", "tr-TR");
+      url.searchParams.set("channelId", "1");
+      url.searchParams.set("storefrontId", "1");
+
+      const response = await fetch(url.toString(), {
+        credentials: "omit"
+      });
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = (await response.json()) as TrendyolPriceHistoryResponse;
+      const prices = Object.fromEntries(
+        Object.entries(payload.prices ?? {})
+          .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+      );
+
+      if (Object.keys(prices).length === 0) {
+        continue;
+      }
+
+      return {
+        source: "trendyol_internal",
+        listingId,
+        contentId,
+        prices
+      };
+    } catch (error) {
+      console.warn("[BiBak] Trendyol price history fetch failed", { listingId, error });
+    }
+  }
+
+  return undefined;
+}
+
 async function fetchDetailedReviewsPayload(productId: string, targetCount = TARGET_REVIEW_COUNT): Promise<DetailedReviewApiPayload> {
   try {
     const reviews: string[] = [];
@@ -492,21 +651,19 @@ function extractTitle(): string {
 }
 
 function extractPrice(): string {
-  const structuredData = getStructuredProductData();
-  const structuredPrice = formatPrice(structuredData?.offers?.price, structuredData?.offers?.priceCurrency);
-  if (structuredPrice) {
-    return structuredPrice;
-  }
-
   const candidates = getVisibleCandidates(SELECTORS.price);
   const direct = pickPrice(candidates);
   if (direct) {
     return direct;
   }
 
-  const bodyText = document.body?.innerText ?? "";
-  const match = bodyText.match(PRICE_PATTERN);
-  return match?.[0]?.trim() ?? "";
+  const structuredData = getStructuredProductData();
+  const structuredPrice = formatPrice(structuredData?.offers?.price, structuredData?.offers?.priceCurrency);
+  if (structuredPrice) {
+    return structuredPrice;
+  }
+
+  return "";
 }
 
 function extractSeller(): string {
@@ -583,7 +740,12 @@ function resolveReviewSource(
   return reviews.length > 0 ? "dom" : "fallback";
 }
 
-function buildMetadata(product: Omit<ScrapedProduct, "metadata">, productId: string | null, source: ScrapeSource): ScrapeMetadata {
+function buildMetadata(
+  product: Omit<ScrapedProduct, "metadata">,
+  productId: string | null,
+  listingId: string | null,
+  source: ScrapeSource
+): ScrapeMetadata {
   const missingFields: MissingProductField[] = [];
   const warnings: ScrapeWarning[] = [];
 
@@ -632,6 +794,7 @@ function buildMetadata(product: Omit<ScrapedProduct, "metadata">, productId: str
 
   return {
     productId: productId ?? undefined,
+    listingId: listingId ?? undefined,
     source,
     confidence,
     reviewCount: product.reviews.length,
@@ -652,6 +815,7 @@ export class TrendyolScraper implements Scraper {
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
     const productId = extractProductIdFromUrl(window.location.href);
+    const listingIds = extractListingIds(productId);
     const detailedReviewPayload = productId ? await fetchDetailedReviewsPayload(productId) : { reviews: [] };
     const reviewApiPayload =
       detailedReviewPayload.reviews.length > 0
@@ -663,6 +827,8 @@ export class TrendyolScraper implements Scraper {
       reviewApiPayload.reviews.length === 0 && !reviewApiPayload.rating
         ? await fetchReviewDetailPayload()
         : { reviews: [] as string[], rating: 0, reviewCount: 0 };
+    const priceHistory = await fetchPriceHistoryPayload(listingIds, productId);
+    const listingId = priceHistory?.listingId ?? listingIds[0] ?? null;
 
     const title = extractTitle();
     const price = extractPrice();
@@ -687,7 +853,8 @@ export class TrendyolScraper implements Scraper {
 
     const scraped: ScrapedProduct = {
       ...product,
-      metadata: buildMetadata(product, productId, source)
+      metadata: buildMetadata(product, productId, listingId, source),
+      priceHistory
     };
 
     console.log("[BiBak] Scraped Trendyol data:", {
@@ -696,6 +863,8 @@ export class TrendyolScraper implements Scraper {
       seller: scraped.seller,
       rating: scraped.rating,
       reviewsCount: scraped.reviews.length,
+      listingIdsChecked: listingIds.length,
+      priceHistoryCount: scraped.priceHistory ? Object.keys(scraped.priceHistory.prices).length : 0,
       metadata: scraped.metadata,
       reviewSample: scraped.reviews.slice(0, 3)
     });

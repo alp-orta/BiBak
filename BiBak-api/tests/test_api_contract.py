@@ -1,4 +1,6 @@
 import unittest
+import os
+import tempfile
 from unittest.mock import patch
 
 from main import flask_app
@@ -8,7 +10,13 @@ from services.ml_engine import analyze_product_data
 
 class ApiContractTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        os.environ["BIBAK_DB_PATH"] = os.path.join(self.tempdir.name, "test.sqlite3")
         self.client = flask_app.test_client()
+
+    def tearDown(self) -> None:
+        os.environ.pop("BIBAK_DB_PATH", None)
+        self.tempdir.cleanup()
 
     def test_rejects_non_object_json(self) -> None:
         response = self.client.post(
@@ -36,6 +44,9 @@ class ApiContractTest(unittest.TestCase):
         self.assertEqual(payload.rating, 0.0)
         self.assertEqual(payload.locale, "tr")
         self.assertEqual(payload.reviews, ["Good product"])
+        self.assertEqual(payload.platform, "unknown")
+        self.assertEqual(payload.scrape_metadata, {})
+        self.assertEqual(payload.external_price_history, {})
 
     def test_limited_review_response_keeps_contract(self) -> None:
         response = self.client.post("/analyze-product", json={"reviews": ["Only one"], "rating": "4.5"})

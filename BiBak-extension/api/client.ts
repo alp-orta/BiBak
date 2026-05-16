@@ -8,6 +8,29 @@ export interface ProductData {
   reviews: string[]
   rating: number
   locale?: string
+  platform?: "trendyol" | "hepsiburada" | "amazon" | "unknown"
+  product_id?: string
+  url?: string
+  scrape_metadata?: {
+    productId?: string
+    listingId?: string
+    source: string
+    confidence: number
+    reviewCount: number
+    missingFields: string[]
+    warnings: string[]
+  }
+  parsed_price?: {
+    value: number | null
+    currency: string | null
+    raw: string
+  }
+  external_price_history?: {
+    source: "trendyol_internal"
+    listingId?: string
+    contentId?: string
+    prices: Record<string, number>
+  }
 }
 
 export interface AnalysisData {
@@ -17,9 +40,74 @@ export interface AnalysisData {
   seller_reliability_score: number
   risk_flags: string[]
   explanations: string[]
-  safer_alternatives: string[]
+  safer_alternatives: SaferAlternative[]
+  review_analysis?: ReviewAnalysis | null
+  price_analysis?: PriceAnalysis | null
+  seller_analysis?: SellerAnalysis | null
+  purchase_timing?: PurchaseTiming | null
   source?: "api" | "fallback"
   warnings?: string[]
+}
+
+export interface ReviewAnalysis {
+  fraud_score: number
+  suspicious_clusters: number
+  cluster_data: unknown[]
+  review_scores: Array<{
+    index: number
+    text_snippet?: string
+    fraud_score: number
+    anomaly_score?: number
+    cluster_id?: number
+    flags: string[]
+  }>
+}
+
+export interface PriceAnalysis {
+  current_price: number | null
+  currency: string | null
+  history_count: number
+  observed_low: number | null
+  observed_median: number | null
+  observed_average?: number | null
+  observed_high: number | null
+  latest_history_price?: number | null
+  current_vs_median?: number
+  current_vs_average?: number
+  discount_risk: string
+  confidence: number
+  score: number
+  warnings: string[]
+  explanation?: string
+  source?: string
+}
+
+export interface SellerAnalysis {
+  seller: string | null
+  history_count: number
+  observed_products: number
+  average_rating?: number | null
+  average_fraud_score?: number
+  score: number
+  confidence: number
+  warnings: string[]
+  explanation?: string
+}
+
+export interface PurchaseTiming {
+  recommendation: "buy_now" | "wait" | "insufficient_data"
+  confidence: number
+  reason: string
+}
+
+export interface SaferAlternative {
+  title?: string
+  seller?: string
+  url?: string
+  price?: number
+  currency?: string
+  trust_score?: number
+  reason?: string
 }
 
 const FALLBACK_TEXT = {

@@ -22,6 +22,12 @@ class ProductRequest:
     reviews: list[str] = field(default_factory=list)
     rating: float = 0.0
     locale: str = "tr"
+    platform: str = "unknown"
+    product_id: str = ""
+    url: str = ""
+    scrape_metadata: dict[str, Any] = field(default_factory=dict)
+    parsed_price: dict[str, Any] = field(default_factory=dict)
+    external_price_history: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ProductRequest":
@@ -38,6 +44,22 @@ class ProductRequest:
         if locale not in ("tr", "en"):
             locale = "tr"
 
+        scrape_metadata = payload.get("scrape_metadata", {})
+        if not isinstance(scrape_metadata, dict):
+            scrape_metadata = {}
+
+        parsed_price = payload.get("parsed_price", {})
+        if not isinstance(parsed_price, dict):
+            parsed_price = {}
+
+        external_price_history = payload.get("external_price_history", {})
+        if not isinstance(external_price_history, dict):
+            external_price_history = {}
+
+        platform = _coerce_text(payload.get("platform")).lower() or "unknown"
+        if platform not in ("trendyol", "hepsiburada", "amazon", "unknown"):
+            platform = "unknown"
+
         return cls(
             title=_coerce_text(payload.get("title")),
             price=_coerce_text(payload.get("price")),
@@ -45,6 +67,12 @@ class ProductRequest:
             reviews=[review.strip() for review in reviews if isinstance(review, str) and review.strip()],
             rating=rating,
             locale=locale,
+            platform=platform,
+            product_id=_coerce_text(payload.get("product_id")),
+            url=_coerce_text(payload.get("url")),
+            scrape_metadata=scrape_metadata,
+            parsed_price=parsed_price,
+            external_price_history=external_price_history,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -55,6 +83,12 @@ class ProductRequest:
             "reviews": self.reviews,
             "rating": self.rating,
             "locale": self.locale,
+            "platform": self.platform,
+            "product_id": self.product_id,
+            "url": self.url,
+            "scrape_metadata": self.scrape_metadata,
+            "parsed_price": self.parsed_price,
+            "external_price_history": self.external_price_history,
         }
 
 
@@ -66,8 +100,11 @@ class AnalysisResponse:
     seller_reliability_score: int
     risk_flags: list[str]
     explanations: list[str]
-    safer_alternatives: list[str]
+    safer_alternatives: list[Any]
     review_analysis: dict[str, Any] | None = None
+    price_analysis: dict[str, Any] | None = None
+    seller_analysis: dict[str, Any] | None = None
+    purchase_timing: dict[str, Any] | None = None
     source: str = "api"
     warnings: list[str] = field(default_factory=list)
 
@@ -93,11 +130,20 @@ class AnalysisResponse:
             seller_reliability_score=_coerce_score(payload.get("seller_reliability_score")),
             risk_flags=[str(flag) for flag in payload.get("risk_flags", []) if isinstance(flag, str)],
             explanations=[str(item) for item in payload.get("explanations", []) if isinstance(item, str)],
-            safer_alternatives=[
-                str(item) for item in payload.get("safer_alternatives", []) if isinstance(item, str)
-            ],
+            safer_alternatives=payload.get("safer_alternatives", [])
+            if isinstance(payload.get("safer_alternatives"), list)
+            else [],
             review_analysis=payload.get("review_analysis")
             if isinstance(payload.get("review_analysis"), dict)
+            else None,
+            price_analysis=payload.get("price_analysis")
+            if isinstance(payload.get("price_analysis"), dict)
+            else None,
+            seller_analysis=payload.get("seller_analysis")
+            if isinstance(payload.get("seller_analysis"), dict)
+            else None,
+            purchase_timing=payload.get("purchase_timing")
+            if isinstance(payload.get("purchase_timing"), dict)
             else None,
             source=payload.get("source") if payload.get("source") in ("api", "fallback") else "api",
             warnings=[
@@ -115,6 +161,9 @@ class AnalysisResponse:
             "explanations": self.explanations,
             "safer_alternatives": self.safer_alternatives,
             "review_analysis": self.review_analysis,
+            "price_analysis": self.price_analysis,
+            "seller_analysis": self.seller_analysis,
+            "purchase_timing": self.purchase_timing,
             "source": self.source,
             "warnings": self.warnings,
         }

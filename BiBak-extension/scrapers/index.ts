@@ -6,6 +6,14 @@ export interface ScrapedProduct {
   rating: number;
   platform: "trendyol" | "hepsiburada" | "amazon" | "unknown";
   metadata?: ScrapeMetadata;
+  priceHistory?: ExternalPriceHistory;
+}
+
+export interface ExternalPriceHistory {
+  source: "trendyol_internal";
+  listingId?: string;
+  contentId?: string;
+  prices: Record<string, number>;
 }
 
 export type ScrapeSource =
@@ -28,6 +36,7 @@ export type ScrapeWarning =
 
 export interface ScrapeMetadata {
   productId?: string;
+  listingId?: string;
   source: ScrapeSource;
   confidence: number;
   reviewCount: number;

@@ -17,6 +17,7 @@ const COLORS = {
 }
 
 const LOCALE_STORAGE_KEY = "bibak-locale"
+const REVIEW_DATA_WARNING_CODES = ["low_review_count", "no_reviews", "limited_review_data"]
 
 function getInitialLocale(): Locale {
   try {
@@ -141,8 +142,166 @@ function ExplanationCard({ text }: { text: string }) {
   )
 }
 
+function parsePriceText(price: string): { value: number | null; currency: string | null; raw: string } {
+  const normalizedText = price.replace(/\u00a0/g, " ")
+  const matches = Array.from(normalizedText.matchAll(/(?:([$€£₺])\s*(\d[\d.,]*)|(\d[\d.,]*)\s*(TL|TRY|USD|EUR|GBP|₺|[$€£]))/gi))
+  const productPriceMatches = matches.filter((item) => {
+    const end = (item.index ?? 0) + item[0].length
+    return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(normalizedText.slice(end, end + 32))
+  })
+  const match = productPriceMatches.at(-1)
+  if (!match) return { value: null, currency: null, raw: price }
+
+  const number = match[2] || match[3]
+  const normalized = number.includes(",")
+    ? number.replace(/\./g, "").replace(",", ".")
+    : number.split(".").length > 2
+      ? number.replace(/\./g, "")
+      : number
+  const value = Number(normalized)
+  const marker = (match[1] || match[4] || "").toUpperCase()
+  const currencyMap: Record<string, string> = { "₺": "TRY", TL: "TRY", TRY: "TRY", "$": "USD", USD: "USD", "€": "EUR", EUR: "EUR", "£": "GBP", GBP: "GBP" }
+
+  return {
+    value: Number.isFinite(value) ? value : null,
+    currency: Number.isFinite(value) ? currencyMap[marker] || "TRY" : null,
+    raw: price
+  }
+}
+
+function formatMoney(value?: number | null, currency?: string | null) {
+  if (typeof value !== "number") return "N/A"
+  try {
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: currency || "TRY",
+      maximumFractionDigits: 2
+    }).format(value)
+  } catch {
+    return `${value.toFixed(2)} ${currency || ""}`.trim()
+  }
+}
+
+function MiniStat({ label, value, valueColor }: { label: string; value: string | number; valueColor?: string }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", gap: 10,
+      fontSize: 11, lineHeight: 1.35, color: COLORS.textDim, marginTop: 5
+    }}>
+      <span>{label}</span>
+      <strong style={{ color: valueColor || COLORS.text, fontWeight: 700, textAlign: "right" }}>{value}</strong>
+    </div>
+  )
+}
+
+function InsightPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "0 16px 12px" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
+        {title}
+      </div>
+      <div style={{
+        background: "rgba(255,255,255,0.035)",
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 10,
+        padding: "10px 12px"
+      }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function PriceTimingPanel({ data, locale }: { data: AnalysisData; locale: Locale }) {
+  if (!data.price_analysis && !data.purchase_timing) return null
+  const price = data.price_analysis
+  const timing = data.purchase_timing
+  const averagePrice = price?.observed_average ?? null
+  const currentPrice = price?.current_price ?? null
+  const currentColor = averagePrice != null && currentPrice != null
+    ? currentPrice < averagePrice
+      ? COLORS.green
+      : currentPrice > averagePrice
+        ? COLORS.orange
+        : COLORS.text
+    : COLORS.text
+  const analysisText = price?.explanation || timing?.reason
+
+  return (
+    <InsightPanel title={locale === "tr" ? "Fiyat & Zamanlama" : "Price & Timing"}>
+      {price && (
+        <>
+          <MiniStat label={locale === "tr" ? "Geçmiş" : "History"} value={price.history_count} />
+          <MiniStat label={locale === "tr" ? "En düşük" : "Low"} value={formatMoney(price.observed_low, price.currency)} />
+          <MiniStat label={locale === "tr" ? "En yüksek" : "High"} value={formatMoney(price.observed_high, price.currency)} />
+          <MiniStat label={locale === "tr" ? "Ortalama" : "Average"} value={formatMoney(averagePrice, price.currency)} />
+          <MiniStat label={locale === "tr" ? "Güncel" : "Current"} value={formatMoney(currentPrice, price.currency)} valueColor={currentColor} />
+        </>
+      )}
+      {analysisText && (
+        <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
+          {analysisText}
+        </p>
+      )}
+    </InsightPanel>
+  )
+}
+
+function LowReviewNotice({ data, scrapedData, locale }: { data: AnalysisData; scrapedData: ScrapedProduct | null; locale: Locale }) {
+  const warnings = new Set([...(scrapedData?.metadata?.warnings || []), ...(data.warnings || [])])
+  const reviewCount = scrapedData?.metadata?.reviewCount ?? scrapedData?.reviews.length ?? 0
+  const show = REVIEW_DATA_WARNING_CODES.some((warning) => warnings.has(warning)) || reviewCount < 3
+  if (!show) return null
+
+  const message = locale === "tr"
+    ? `Yorum sayısı düşük (${reviewCount}); sonuç daha temkinli okunmalı.`
+    : `Low review sample (${reviewCount}); treat the result cautiously.`
+
+  return (
+    <div style={{
+      margin: "0 16px 12px",
+      padding: "9px 11px",
+      background: "rgba(234, 179, 8, 0.08)",
+      border: "1px solid rgba(234, 179, 8, 0.18)",
+      borderRadius: 10,
+      color: "#FDE68A",
+      fontSize: 11,
+      lineHeight: 1.4
+    }}>
+      {message}
+    </div>
+  )
+}
+
+function AlternativesPanel({ data, locale }: { data: AnalysisData; locale: Locale }) {
+  if (!data.safer_alternatives.length) return null
+
+  return (
+    <InsightPanel title={locale === "tr" ? "Alternatifler" : "Alternatives"}>
+      {data.safer_alternatives.slice(0, 3).map((item, index) => (
+        <a
+          key={`${item.url || item.title || index}`}
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "block", color: COLORS.text, textDecoration: "none",
+            fontSize: 11, lineHeight: 1.35, marginTop: index ? 9 : 0
+          }}
+        >
+          <strong>{item.title || (locale === "tr" ? "Alternatif ürün" : "Alternative product")}</strong>
+          <span style={{ display: "block", color: COLORS.textDim, marginTop: 2 }}>
+            {item.seller || "N/A"} · {formatMoney(item.price, item.currency)} · {item.trust_score || 0}/100
+          </span>
+        </a>
+      ))}
+    </InsightPanel>
+  )
+}
+
 function StatusNotice({ source, warnings, strings }: { source?: string; warnings?: string[]; strings: Translations }) {
-  if (source !== "fallback" && (!warnings || warnings.length === 0)) return null
+  const statusWarnings = (warnings || []).filter((warning) => !REVIEW_DATA_WARNING_CODES.includes(warning))
+  if (source !== "fallback" && statusWarnings.length === 0) return null
 
   const isFallback = source === "fallback"
   const message = isFallback
@@ -187,6 +346,7 @@ function LanguageToggle({ locale, onChange }: { locale: Locale; onChange: (l: Lo
 
 const containerStyle: React.CSSProperties = {
   width: 320,
+  maxHeight: "calc(100vh - 32px)",
   background: COLORS.bg,
   backdropFilter: "blur(24px)",
   WebkitBackdropFilter: "blur(24px)",
@@ -194,7 +354,10 @@ const containerStyle: React.CSSProperties = {
   border: `1px solid ${COLORS.border}`,
   boxShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset",
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  overflow: "hidden",
+  overflowX: "hidden",
+  overflowY: "auto",
+  overscrollBehavior: "contain",
+  scrollbarWidth: "thin",
   color: COLORS.text,
 }
 
@@ -234,7 +397,13 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           seller: scrapedData.seller,
           reviews: scrapedData.reviews,
           rating: scrapedData.rating,
-          locale
+          locale,
+          platform: scrapedData.platform,
+          product_id: scrapedData.metadata?.productId,
+          url: window.location.href,
+          scrape_metadata: scrapedData.metadata,
+          parsed_price: parsePriceText(scrapedData.price),
+          external_price_history: scrapedData.priceHistory
         })
         setData(res)
       } catch (err) {
@@ -381,6 +550,10 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       </div>
 
       <StatusNotice source={data.source} warnings={data.warnings} strings={strings} />
+
+      <LowReviewNotice data={data} scrapedData={scrapedData} locale={locale} />
+      <PriceTimingPanel data={data} locale={locale} />
+      <AlternativesPanel data={data} locale={locale} />
 
       {/* Risk Flags */}
       {data.risk_flags.length > 0 && (

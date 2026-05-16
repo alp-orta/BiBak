@@ -1,5 +1,13 @@
 from review_analyzer import analyze_reviews
 from models.api_models import ProductRequest
+from services import history_store
+from services.trust_signals import (
+    build_price_analysis,
+    build_purchase_timing,
+    build_safer_alternatives,
+    build_seller_analysis,
+    parse_price_text,
+)
 import re
 
 
@@ -10,6 +18,11 @@ RISK_FLAG_MAP = {
         "low_lexical_diversity": "Düşük kelime çeşitliliği — şablon yazım şüphesi",
         "high_word_repetition": "Aşırı kelime tekrarı — bot aktivitesi olasılığı",
         "high_fraud": "Yorum güvenilirliği düşük",
+        "suspicious_discount": "Şüpheli indirim paterni tespit edildi",
+        "limited_price_history": "Fiyat geçmişi sınırlı",
+        "seller_review_risk": "Satıcı geçmişinde yorum riski var",
+        "limited_seller_history": "Satıcı geçmişi sınırlı",
+        "low_scrape_confidence": "Sayfadan çekilen veri kalitesi düşük",
         "price_ok": "Fiyat geçmiş trendlerle tutarlı",
         "seller_ok": "Satıcı profili normal görünüyor",
     },
@@ -19,6 +32,11 @@ RISK_FLAG_MAP = {
         "low_lexical_diversity": "Low lexical diversity — templated writing suspected",
         "high_word_repetition": "Excessive word repetition — possible bot activity",
         "high_fraud": "Review authenticity is low",
+        "suspicious_discount": "Suspicious discount pattern detected",
+        "limited_price_history": "Price history is limited",
+        "seller_review_risk": "Seller history has review risk",
+        "limited_seller_history": "Seller history is limited",
+        "low_scrape_confidence": "Extracted page data quality is low",
         "price_ok": "Price is consistent with historical trends",
         "seller_ok": "Seller profile appears normal",
     },
@@ -82,6 +100,66 @@ def _normalize_review(text: str) -> str:
 
 def _normalize_product(product: dict) -> dict:
     return ProductRequest.from_dict(product).to_dict()
+
+
+def _scrape_confidence(product: dict) -> int | None:
+    metadata = product.get("scrape_metadata") or {}
+    confidence = metadata.get("confidence")
+    return confidence if isinstance(confidence, int) else None
+
+
+def _extract_scrape_warnings(product: dict) -> list[str]:
+    metadata = product.get("scrape_metadata") or {}
+    warnings = metadata.get("warnings") or []
+    return [str(warning) for warning in warnings if isinstance(warning, str)]
+
+
+def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> tuple[dict, dict, dict, list[str]]:
+    product_key = history_store.make_product_key(product)
+    product_history = history_store.get_product_snapshots(product_key)
+    seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
+    scrape_confidence = _scrape_confidence(product)
+
+    price_analysis = build_price_analysis(product, product_history, locale)
+    seller_analysis = build_seller_analysis(product, seller_history, fraud_score, scrape_confidence, locale)
+    purchase_timing = build_purchase_timing(price_analysis, locale)
+
+    warnings = list(dict.fromkeys(
+        price_analysis.get("warnings", [])
+        + seller_analysis.get("warnings", [])
+        + _extract_scrape_warnings(product)
+    ))
+    if scrape_confidence is not None and scrape_confidence < 55 and "low_scrape_confidence" not in warnings:
+        warnings.append("low_scrape_confidence")
+
+    return price_analysis, seller_analysis, purchase_timing, warnings
+
+
+def _append_contextual_flags(risk_flags: list[str], warnings: list[str], locale: str) -> list[str]:
+    flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])
+    additions = {
+        "suspicious_discount_pattern": "suspicious_discount",
+        "current_price_above_history": "suspicious_discount",
+        "limited_seller_history": "limited_seller_history",
+        "seller_review_risk": "seller_review_risk",
+        "low_scrape_confidence": "low_scrape_confidence",
+    }
+    for warning, flag_key in additions.items():
+        if warning in warnings:
+            flag = flags_map[flag_key]
+            if flag not in risk_flags:
+                risk_flags.append(flag)
+    return risk_flags
+
+
+def _contextual_explanations(price_analysis: dict, seller_analysis: dict, purchase_timing: dict) -> list[str]:
+    return [
+        item
+        for item in (
+            seller_analysis.get("explanation"),
+        )
+        if isinstance(item, str) and item
+    ]
 
 
 NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
@@ -236,11 +314,6 @@ def _build_review_explanations(
 def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
     flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])
     reviews = product["reviews"]
-    rating = product["rating"]
-    seller = product["seller"]
-    price = product["price"]
-    has_price = bool(price and price != "N/A")
-    has_seller = bool(seller and seller != "N/A")
 
     normalized = [_normalize_review(review) for review in reviews]
     unique_count = len(set(normalized))
@@ -257,11 +330,9 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
     authenticity = max(25, min(95, authenticity))
 
     fraud = max(0, 100 - authenticity)
-    price_score = 85 if has_price else 65
-    seller_score = min(100, int(rating * 20)) if rating > 0 else 65
-    if not has_seller:
-        seller_score -= 15
-    seller_score = max(40, min(95, seller_score))
+    price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
+    price_score = price_analysis["score"]
+    seller_score = seller_analysis["score"]
 
     trust_score = int(authenticity * 0.45 + price_score * 0.25 + seller_score * 0.30)
 
@@ -270,12 +341,14 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
         risk_flags.append(flags_map["high_word_repetition"])
     if fraud > 40:
         risk_flags.append(flags_map["high_fraud"])
+    risk_flags = _append_contextual_flags(risk_flags, warnings, locale)
 
-    explanations = [
-        flags_map["price_ok"] if has_price else "Price data is missing",
-        flags_map["seller_ok"] if has_seller else "Seller data is incomplete",
-        f"Fallback analysis used after ML pipeline failure: {error_message[:120]}",
-    ]
+    explanations = _contextual_explanations(price_analysis, seller_analysis, purchase_timing)
+    explanations.append(f"Fallback analysis used after ML pipeline failure: {error_message[:120]}")
+    warnings = list(dict.fromkeys(["ml_pipeline_failed"] + warnings))
+
+    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    history_store.record_snapshot(product, price_info, fraud, trust_score)
 
     return {
         "trust_score": max(0, min(100, trust_score)),
@@ -286,8 +359,11 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
         "explanations": explanations,
         "safer_alternatives": [],
         "review_analysis": None,
+        "price_analysis": price_analysis,
+        "seller_analysis": seller_analysis,
+        "purchase_timing": purchase_timing,
         "source": "fallback",
-        "warnings": ["ml_pipeline_failed"],
+        "warnings": warnings,
     }
 
 
@@ -298,21 +374,38 @@ def analyze_product_data(product: dict) -> dict:
     locale = product["locale"]
 
     if not reviews or len(reviews) < 2:
-        flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])
+        fraud = 25
+        authenticity = 75
+        price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
+        price_score = price_analysis["score"]
+        seller_score = seller_analysis["score"]
+        rating_signal = min(int(rating * 20), 100) if rating > 0 else 70
+        trust_score = max(0, min(100, int(round(
+            authenticity * 0.45
+            + price_score * 0.25
+            + seller_score * 0.20
+            + rating_signal * 0.10
+        ))))
+        risk_flags = _append_contextual_flags([], warnings, locale)
+        explanations = _contextual_explanations(price_analysis, seller_analysis, purchase_timing)
+        price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+        alternatives = build_safer_alternatives(product, trust_score, price_score)
+        history_store.record_snapshot(product, price_info, fraud, trust_score)
+
         return {
-            "trust_score": 75,
-            "review_authenticity_score": 75,
-            "price_integrity_score": 90,
-            "seller_reliability_score": 70,
-            "risk_flags": [],
-            "explanations": [
-                flags_map["price_ok"],
-                flags_map["seller_ok"],
-            ],
-            "safer_alternatives": [],
+            "trust_score": trust_score,
+            "review_authenticity_score": authenticity,
+            "price_integrity_score": price_score,
+            "seller_reliability_score": seller_score,
+            "risk_flags": risk_flags,
+            "explanations": explanations,
+            "safer_alternatives": alternatives,
             "review_analysis": None,
+            "price_analysis": price_analysis,
+            "seller_analysis": seller_analysis,
+            "purchase_timing": purchase_timing,
             "source": "api",
-            "warnings": ["limited_review_data"],
+            "warnings": list(dict.fromkeys(["limited_review_data"] + warnings)),
         }
 
     try:
@@ -322,11 +415,14 @@ def analyze_product_data(product: dict) -> dict:
 
     fraud = analysis["fraud_score"]
     authenticity = analysis["review_authenticity_score"]
-    price_score = _compute_price_score(fraud)
-    seller_score = _compute_seller_score(rating, len(reviews), fraud)
+    price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
+    price_score = price_analysis["score"]
+    seller_score = seller_analysis["score"]
     summary = _summarize_review_mix(reviews, analysis)
 
     rating_signal = min(int(rating * 20), 100) if rating > 0 else 70
+    scrape_confidence = _scrape_confidence(product)
+    scrape_penalty = 0 if scrape_confidence is None else max(0, 55 - scrape_confidence) * 0.25
     base_trust = (
         authenticity * 0.6
         + seller_score * 0.2
@@ -338,15 +434,18 @@ def analyze_product_data(product: dict) -> dict:
         + summary["pre_use_ratio"] * 18
         + max(0.0, 0.2 - summary["detailed_ratio"]) * 30
         + summary["negative_ratio"] * 15
+        + scrape_penalty
     )
     trust_score = max(0, min(100, int(round(base_trust - evidence_penalty))))
 
-    risk_flags = _derive_risk_flags(analysis, locale)
+    risk_flags = _append_contextual_flags(_derive_risk_flags(analysis, locale), warnings, locale)
     explanations = _build_review_explanations(reviews, rating, analysis, locale)
+    explanations.extend(_contextual_explanations(price_analysis, seller_analysis, purchase_timing))
+    explanations = explanations[:7]
 
-    safer_alternatives: list[str] = []
-    if fraud > 50:
-        safer_alternatives.append("https://amazon.com/dp/safer-alternative-mock")
+    safer_alternatives = build_safer_alternatives(product, trust_score, price_score)
+    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    history_store.record_snapshot(product, price_info, fraud, trust_score)
 
     return {
         "trust_score": trust_score,
@@ -362,6 +461,9 @@ def analyze_product_data(product: dict) -> dict:
             "cluster_data": analysis["cluster_data"],
             "review_scores": analysis["review_scores"],
         },
+        "price_analysis": price_analysis,
+        "seller_analysis": seller_analysis,
+        "purchase_timing": purchase_timing,
         "source": "api",
-        "warnings": [],
+        "warnings": warnings,
     }
