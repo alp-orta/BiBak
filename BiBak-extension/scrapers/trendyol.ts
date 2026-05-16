@@ -9,6 +9,9 @@ const SELECTORS = {
     "meta[property='og:title']"
   ],
   price: [
+    "[class*='basket']",
+    "[class*='campaign']",
+    "[class*='discount']",
     ".prc-dsc",
     ".prc-box-dscntd",
     ".pr-bx-nm .prc-dsc",
@@ -355,23 +358,37 @@ function getVisibleCandidates(selectors: string[]): string[] {
 }
 
 function pickPrice(candidates: string[]): string {
+  let fallback = "";
+
   for (const candidate of candidates) {
     if (/\b(?:kupon|coupon|kazan)\b/i.test(candidate)) {
       continue;
     }
 
     const matches = Array.from(candidate.matchAll(new RegExp(PRICE_PATTERN.source, "gi")));
-    const productPriceMatches = matches.filter((item) => {
+    const productPriceMatches = matches
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => {
       const end = (item.index ?? 0) + item[0].length;
       return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.slice(end, end + 32));
     });
-    const selected = productPriceMatches.at(-1)?.[0]?.trim();
-    if (selected) {
-      return selected;
+
+    const basketPriceMatches = productPriceMatches.filter(({ item, index }) => {
+      const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48);
+      return candidate.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette");
+    });
+    const basketSelected = basketPriceMatches.at(-1)?.item[0]?.trim();
+    if (basketSelected) {
+      return basketSelected;
+    }
+
+    const selected = productPriceMatches.at(-1)?.item[0]?.trim();
+    if (selected && !fallback) {
+      fallback = selected;
     }
   }
 
-  return "";
+  return fallback;
 }
 
 function pickSeller(candidates: string[]): string {

@@ -45,6 +45,7 @@ class TrustSignalsTest(unittest.TestCase):
         self.assertEqual(parse_price_text("$49.99")["currency"], "USD")
         self.assertEqual(parse_price_text("Son 10 Günün En Düşük 353,92 TL 350,38 TL")["value"], 350.38)
         self.assertEqual(parse_price_text("353,92 TL 350,38 TL (3,89 TL / Tablet)")["value"], 350.38)
+        self.assertEqual(parse_price_text("Sepette %40 İndirim\nSepette 990 TL\n1.650 TL")["value"], 990)
         self.assertIsNone(parse_price_text("3,89 TL / Tablet")["value"])
         self.assertIsNone(parse_price_text("Son 10 ürün kaldı")["value"])
 

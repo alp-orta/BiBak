@@ -23,15 +23,31 @@ def _is_unit_price_match(text: str, match: re.Match[str]) -> bool:
     return bool(UNIT_PRICE_RE.search(trailing))
 
 
+def _is_basket_price_match(text: str, matches: list[re.Match[str]], index: int) -> bool:
+    match = matches[index]
+    previous_end = matches[index - 1].end() if index > 0 else max(0, match.start() - 48)
+    context = text[previous_end:match.start()].lower()
+    return "sepette" in context
+
+
 def parse_price_text(price_text: str, parsed_price: dict[str, Any] | None = None) -> dict[str, Any]:
     parsed_price = parsed_price or {}
     text = price_text or ""
     matches = list(PRICE_RE.finditer(text.replace("\xa0", " ")))
     if matches:
-        product_price_matches = [match for match in matches if not _is_unit_price_match(text, match)]
+        product_price_matches = [
+            (index, match)
+            for index, match in enumerate(matches)
+            if not _is_unit_price_match(text, match)
+        ]
         if not product_price_matches:
             return {"value": None, "currency": None, "raw": price_text}
-        match = product_price_matches[-1]
+        basket_price_matches = [
+            match
+            for index, match in product_price_matches
+            if _is_basket_price_match(text, matches, index)
+        ]
+        match = (basket_price_matches or [match for _, match in product_price_matches])[-1]
         number = match.group("prefix_number") or match.group("suffix_number") or ""
         if "," in number and "." in number:
             normalized = number.replace(".", "").replace(",", ".")

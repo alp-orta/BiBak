@@ -145,11 +145,17 @@ function ExplanationCard({ text }: { text: string }) {
 function parsePriceText(price: string): { value: number | null; currency: string | null; raw: string } {
   const normalizedText = price.replace(/\u00a0/g, " ")
   const matches = Array.from(normalizedText.matchAll(/(?:([$€£₺])\s*(\d[\d.,]*)|(\d[\d.,]*)\s*(TL|TRY|USD|EUR|GBP|₺|[$€£]))/gi))
-  const productPriceMatches = matches.filter((item) => {
+  const productPriceMatches = matches
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
     const end = (item.index ?? 0) + item[0].length
     return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(normalizedText.slice(end, end + 32))
   })
-  const match = productPriceMatches.at(-1)
+  const basketPriceMatches = productPriceMatches.filter(({ item, index }) => {
+    const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48)
+    return normalizedText.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette")
+  })
+  const match = (basketPriceMatches.at(-1) || productPriceMatches.at(-1))?.item
   if (!match) return { value: null, currency: null, raw: price }
 
   const number = match[2] || match[3]
