@@ -1,4 +1,4 @@
-# TrustCart - Person 2 Workstream
+# TrustCart - Economy Workstream
 
 ## 1. Rol Ozeti
 
