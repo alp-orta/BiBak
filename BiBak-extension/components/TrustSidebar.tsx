@@ -161,7 +161,7 @@ function parsePriceText(price: string): { value: number | null; currency: string
   const number = match[2] || match[3]
   const normalized = number.includes(",")
     ? number.replace(/\./g, "").replace(",", ".")
-    : number.split(".").length > 2
+    : number.split(".").length > 1 && number.split(".").at(-1)?.length === 3
       ? number.replace(/\./g, "")
       : number
   const value = Number(normalized)
@@ -310,9 +310,12 @@ function StatusNotice({ source, warnings, strings }: { source?: string; warnings
   if (source !== "fallback" && statusWarnings.length === 0) return null
 
   const isFallback = source === "fallback"
+  const hasPriceHistoryMismatch = statusWarnings.includes("live_price_differs_from_history")
   const message = isFallback
     ? strings.localFallbackNotice
-    : strings.limitedDataNotice
+    : hasPriceHistoryMismatch
+      ? strings.priceHistoryMismatchNotice
+      : strings.limitedDataNotice
 
   return (
     <div style={{

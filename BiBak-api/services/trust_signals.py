@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import ssl
+import time
 from statistics import median
 from typing import Any
+from urllib.request import Request, urlopen
 
 from services import history_store
 
@@ -12,6 +15,9 @@ PRICE_RE = re.compile(
     re.I,
 )
 UNIT_PRICE_RE = re.compile(r"^\s*(?:/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)", re.I)
+TRENDYOL_DATALAYER_PRICE_RE = re.compile(r'"product_price"\s*:\s*(\d+(?:\.\d+)?)')
+TRENDYOL_PRICE_CACHE_TTL_SECONDS = 300
+_TRENDYOL_PRICE_CACHE: dict[str, tuple[float, float]] = {}
 
 
 def clamp(value: float, minimum: int = 0, maximum: int = 100) -> int:
@@ -74,6 +80,67 @@ def parse_price_text(price_text: str, parsed_price: dict[str, Any] | None = None
     return {"value": None, "currency": None, "raw": price_text}
 
 
+def _fetch_trendyol_datalayer_price(url: str) -> float | None:
+    if not url or "trendyol.com" not in url or "-p-" not in url:
+        return None
+
+    cache_key = url.split("?")[0]
+    cached = _TRENDYOL_PRICE_CACHE.get(cache_key)
+    now = time.time()
+    if cached and now - cached[0] < TRENDYOL_PRICE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    try:
+        request = Request(
+            cache_key,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+            },
+        )
+        with urlopen(request, timeout=2.5, context=ssl._create_unverified_context()) as response:
+            html = response.read(750_000).decode("utf-8", errors="ignore")
+    except Exception:
+        return None
+
+    match = TRENDYOL_DATALAYER_PRICE_RE.search(html)
+    if not match:
+        return None
+
+    try:
+        price = float(match.group(1))
+    except ValueError:
+        return None
+
+    if price > 0:
+        _TRENDYOL_PRICE_CACHE[cache_key] = (now, price)
+        return price
+    return None
+
+
+def resolve_current_price(product: dict[str, Any]) -> dict[str, Any]:
+    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    if product.get("platform") != "trendyol":
+        return price_info
+
+    datalayer_price = _fetch_trendyol_datalayer_price(str(product.get("url") or ""))
+    current = price_info.get("value")
+    if datalayer_price is None:
+        return price_info
+
+    if not isinstance(current, (int, float)) or abs(float(current) - datalayer_price) / datalayer_price >= 0.05:
+        return {
+            "value": datalayer_price,
+            "currency": "TRY",
+            "raw": product.get("price", ""),
+            "source": "trendyol_datalayer",
+            "overrode_value": current,
+        }
+
+    return price_info
+
+
 def _price_values(snapshots: list[dict[str, Any]], currency: str | None) -> list[float]:
     return [
         float(row["price_value"])
@@ -101,7 +168,7 @@ def _external_price_values(product: dict[str, Any]) -> tuple[list[float], str | 
 
 
 def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]], locale: str) -> dict[str, Any]:
-    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    price_info = resolve_current_price(product)
     current = price_info["value"]
     currency = price_info["currency"]
     external_values, history_source, latest_history_price = _external_price_values(product)
@@ -125,10 +192,14 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
             "score": 65,
             "source": history_source,
             "warnings": ["missing_price"],
+            "current_price_source": price_info.get("source") or "scraped_page",
             "explanation": "Fiyat okunamadı." if locale == "tr" else "Price could not be parsed.",
         }
 
     if history_count < 3:
+        warnings = ["insufficient_price_history"]
+        if price_info.get("source") == "trendyol_datalayer":
+            warnings.append("scraped_price_overridden_by_trendyol_datalayer")
         avg = sum(values) / len(values) if values else current
         return {
             "current_price": current,
@@ -142,7 +213,9 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
             "confidence": min(55, (30 if external_values else 15) + history_count * 10),
             "score": 82,
             "source": history_source,
-            "warnings": ["insufficient_price_history"],
+            "warnings": warnings,
+            "current_price_source": price_info.get("source") or "scraped_page",
+            "overrode_current_price": price_info.get("overrode_value"),
             "explanation": "Fiyat geçmişi henüz sınırlı; indirim iddiası düşük güvenle değerlendiriliyor." if locale == "tr" else "Price history is still limited, so discount claims are evaluated with low confidence.",
         }
 
@@ -159,7 +232,10 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
     score = 92
     risk = "normal"
     warnings: list[str] = []
-    if latest_history_price and abs(current - latest_history_price) / latest_history_price >= 0.1:
+    if price_info.get("source") == "trendyol_datalayer":
+        warnings.append("scraped_price_overridden_by_trendyol_datalayer")
+    live_history_mismatch = bool(latest_history_price and abs(current - latest_history_price) / latest_history_price >= 0.1)
+    if live_history_mismatch:
         warnings.append("live_price_differs_from_history")
 
     if current_vs_median <= 0.85:
@@ -178,6 +254,10 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
         risk = "not_best_recent_price"
         warnings.append("not_lowest_observed_price")
 
+    mismatch_suffix = {
+        "tr": " Geçmiş verisi farklı satıcı/listing'e ait olabilir.",
+        "en": " The history may belong to a different listing or seller.",
+    }
     explanations = {
         "tr": {
             "normal": "Güncel fiyat gözlenen fiyat geçmişiyle uyumlu.",
@@ -211,7 +291,9 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
         "score": score,
         "source": history_source,
         "warnings": warnings,
-        "explanation": explanations.get(locale, explanations["en"])[risk],
+        "current_price_source": price_info.get("source") or "scraped_page",
+        "overrode_current_price": price_info.get("overrode_value"),
+        "explanation": explanations.get(locale, explanations["en"])[risk] + (mismatch_suffix.get(locale, mismatch_suffix["en"]) if live_history_mismatch else ""),
     }
 
 
@@ -325,6 +407,10 @@ def _tokens(value: str) -> set[str]:
     return {token for token in re.sub(r"[^\w\s]", " ", value.lower()).split() if len(token) > 2}
 
 
+def _token_overlap(left: set[str], right: set[str]) -> float:
+    return len(left & right) / max(len(left | right), 1)
+
+
 def build_safer_alternatives(product: dict[str, Any], trust_score: int, price_score: int) -> list[dict[str, Any]]:
     platform = product.get("platform") or "unknown"
     product_key = history_store.make_product_key(product)
@@ -335,23 +421,35 @@ def build_safer_alternatives(product: dict[str, Any], trust_score: int, price_sc
     alternatives: list[dict[str, Any]] = []
     for row in history_store.find_alternative_snapshots(platform, product_key):
         candidate_tokens = _tokens(row.get("title") or "")
-        overlap = len(current_tokens & candidate_tokens) / max(len(current_tokens | candidate_tokens), 1)
-        if overlap < 0.2:
+        overlap = _token_overlap(current_tokens, candidate_tokens)
+        price = row.get("price_value")
+        current_price = resolve_current_price(product).get("value")
+        trust = int(row.get("trust_score") or 0)
+        review_count = int(row.get("review_count") or 0)
+        fraud_score = int(row.get("fraud_score") or 100)
+        if overlap < 0.42:
             continue
-        if int(row.get("trust_score") or 0) < max(70, trust_score + 5):
+        if not isinstance(price, (int, float)) or price <= 0:
+            continue
+        if current_price and (price < current_price * 0.35 or price > current_price * 1.75):
+            continue
+        if trust < max(74, trust_score + 5):
+            continue
+        if review_count < 3 or fraud_score >= 45:
             continue
         alternatives.append({
             "title": row.get("title"),
             "seller": row.get("seller"),
             "url": row.get("url"),
-            "price": row.get("price_value"),
+            "price": price,
             "currency": row.get("currency"),
-            "trust_score": row.get("trust_score"),
-            "reason": "Higher local trust and price signals",
+            "trust_score": trust,
+            "reason": "Comparable title, stronger local trust, and sufficient review data",
+            "similarity": round(overlap, 3),
         })
-        if len(alternatives) == 3:
-            break
+
+    alternatives.sort(key=lambda item: (item.get("trust_score") or 0, item.get("similarity") or 0), reverse=True)
 
     if price_score < 60:
-        return alternatives
+        return alternatives[:3]
     return alternatives[:2]

@@ -9,17 +9,11 @@ const SELECTORS = {
     "meta[property='og:title']"
   ],
   price: [
-    "[class*='basket']",
-    "[class*='campaign']",
-    "[class*='discount']",
     ".prc-dsc",
     ".prc-box-dscntd",
     ".pr-bx-nm .prc-dsc",
     ".price-information .prc-dsc",
-    "[data-testid='price-current-price']",
-    "[data-testid*='price']",
-    "[class*='price']",
-    "[class*='prc']"
+    "[data-testid='price-current-price']"
   ],
   seller: [
     "[data-testid='seller-name']",
@@ -109,6 +103,17 @@ type ReviewDetailPageProps = {
 
 type TrendyolPriceHistoryResponse = {
   prices?: Record<string, number>;
+};
+
+type TextCandidate = {
+  text: string;
+  selector: string;
+};
+
+type PriceExtraction = {
+  text: string;
+  value: number | null;
+  selector: string;
 };
 
 function getWindowProps<T>(name: string): T | null {
@@ -328,6 +333,25 @@ function getMerchantFromPageScripts(): string {
   return "";
 }
 
+function getProductPriceFromDataLayer(): PriceExtraction {
+  for (const script of Array.from(document.scripts)) {
+    const text = script.textContent || "";
+    const match = text.match(/"product_price"\s*:\s*(\d+(?:\.\d+)?)/);
+    if (match?.[1]) {
+      const value = Number(match[1]);
+      if (Number.isFinite(value) && value > 0) {
+        return {
+          text: `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value)} TL`,
+          value,
+          selector: "__PRODUCT_DETAIL__DATALAYER.product_price"
+        };
+      }
+    }
+  }
+
+  return { text: "", value: null, selector: "" };
+}
+
 function isVisibleElement(element: Element): boolean {
   const style = window.getComputedStyle(element);
   if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
@@ -338,8 +362,9 @@ function isVisibleElement(element: Element): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
-function getVisibleCandidates(selectors: string[]): string[] {
-  const texts = new Set<string>();
+function getVisibleCandidates(selectors: string[]): TextCandidate[] {
+  const seen = new Set<string>();
+  const candidates: TextCandidate[] = [];
 
   for (const selector of selectors) {
     document.querySelectorAll(selector).forEach((element) => {
@@ -348,43 +373,79 @@ function getVisibleCandidates(selectors: string[]): string[] {
       }
 
       const text = extractText(element);
-      if (text) {
-        texts.add(text);
+      const key = `${selector}:${text}`;
+      if (text && !seen.has(key)) {
+        seen.add(key);
+        candidates.push({ text, selector });
       }
     });
   }
 
-  return Array.from(texts);
+  return candidates;
 }
 
-function pickPrice(candidates: string[]): string {
-  let fallback = "";
+function getBasketPriceCandidates(): TextCandidate[] {
+  const seen = new Set<string>();
+  const candidates: TextCandidate[] = [];
+  document.querySelectorAll("div, span").forEach((element) => {
+    if (!isVisibleElement(element)) return;
+
+    const text = extractText(element);
+    if (
+      text &&
+      text.length <= 180 &&
+      text.toLocaleLowerCase("tr-TR").includes("sepette") &&
+      PRICE_PATTERN.test(text) &&
+      !/\b(?:kupon|coupon|kazan)\b/i.test(text) &&
+      !seen.has(text)
+    ) {
+      seen.add(text);
+      candidates.push({ text, selector: "visible_text:sepette" });
+    }
+  });
+
+  return candidates;
+}
+
+function parsePriceValue(value: string): number | null {
+  const number = value.replace(/[^\d.,]/g, "");
+  const normalized = number.includes(",")
+    ? number.replace(/\./g, "").replace(",", ".")
+    : number.split(".").length > 1 && number.split(".").at(-1)?.length === 3
+      ? number.replace(/\./g, "")
+      : number;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function pickPrice(candidates: TextCandidate[]): PriceExtraction {
+  let fallback: PriceExtraction = { text: "", value: null, selector: "" };
 
   for (const candidate of candidates) {
-    if (/\b(?:kupon|coupon|kazan)\b/i.test(candidate)) {
+    if (/\b(?:kupon|coupon|kazan)\b/i.test(candidate.text)) {
       continue;
     }
 
-    const matches = Array.from(candidate.matchAll(new RegExp(PRICE_PATTERN.source, "gi")));
+    const matches = Array.from(candidate.text.matchAll(new RegExp(PRICE_PATTERN.source, "gi")));
     const productPriceMatches = matches
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => {
       const end = (item.index ?? 0) + item[0].length;
-      return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.slice(end, end + 32));
+      return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.text.slice(end, end + 32));
     });
 
     const basketPriceMatches = productPriceMatches.filter(({ item, index }) => {
       const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48);
-      return candidate.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette");
+      return candidate.text.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette");
     });
     const basketSelected = basketPriceMatches.at(-1)?.item[0]?.trim();
     if (basketSelected) {
-      return basketSelected;
+      return { text: basketSelected, value: parsePriceValue(basketSelected), selector: candidate.selector };
     }
 
     const selected = productPriceMatches.at(-1)?.item[0]?.trim();
-    if (selected && !fallback) {
-      fallback = selected;
+    if (selected && !fallback.text) {
+      fallback = { text: selected, value: parsePriceValue(selected), selector: candidate.selector };
     }
   }
 
@@ -510,11 +571,14 @@ async function fetchReviewApiPayload(productId: string): Promise<ReviewApiPayloa
 
 async function fetchPriceHistoryPayload(
   listingIds: string[],
-  contentId: string | null
+  contentId: string | null,
+  currentPrice: number | null
 ): Promise<ExternalPriceHistory | undefined> {
   if (listingIds.length === 0 || !contentId) {
     return undefined;
   }
+
+  const candidates: Array<ExternalPriceHistory & { latestPrice?: number; score: number }> = [];
 
   for (const listingId of listingIds.slice(0, 12)) {
     try {
@@ -542,18 +606,33 @@ async function fetchPriceHistoryPayload(
         continue;
       }
 
-      return {
+      const datedEntries = Object.entries(prices).sort(([left], [right]) => left.localeCompare(right));
+      const latestPrice = datedEntries.at(-1)?.[1];
+      const position = listingIds.indexOf(listingId);
+      const distancePenalty = currentPrice && latestPrice
+        ? Math.min(35, Math.abs(latestPrice - currentPrice) / currentPrice * 35)
+        : 12;
+      const score = Math.max(0, 100 - position * 3 - distancePenalty + Math.min(10, datedEntries.length));
+      candidates.push({
         source: "trendyol_internal",
         listingId,
         contentId,
+        candidatesChecked: Math.min(listingIds.length, 12),
+        selectedReason: currentPrice ? "closest_latest_history_to_live_price" : "first_ranked_listing_with_history",
+        latestPrice,
+        score,
         prices
-      };
+      });
     } catch (error) {
       console.warn("[BiBak] Trendyol price history fetch failed", { listingId, error });
     }
   }
 
-  return undefined;
+  const selected = candidates.sort((left, right) => right.score - left.score)[0];
+  if (!selected) return undefined;
+
+  const { latestPrice: _latestPrice, score: _score, ...history } = selected;
+  return history;
 }
 
 async function fetchDetailedReviewsPayload(productId: string, targetCount = TARGET_REVIEW_COUNT): Promise<DetailedReviewApiPayload> {
@@ -667,20 +746,29 @@ function extractTitle(): string {
   return cleanTitle(document.title || "");
 }
 
-function extractPrice(): string {
-  const candidates = getVisibleCandidates(SELECTORS.price);
-  const direct = pickPrice(candidates);
-  if (direct) {
+function extractPrice(): PriceExtraction {
+  const basketPrice = pickPrice(getBasketPriceCandidates());
+  if (basketPrice.text) {
+    return basketPrice;
+  }
+
+  const dataLayerPrice = getProductPriceFromDataLayer();
+  if (dataLayerPrice.text) {
+    return dataLayerPrice;
+  }
+
+  const direct = pickPrice(getVisibleCandidates(SELECTORS.price));
+  if (direct.text) {
     return direct;
   }
 
   const structuredData = getStructuredProductData();
   const structuredPrice = formatPrice(structuredData?.offers?.price, structuredData?.offers?.priceCurrency);
   if (structuredPrice) {
-    return structuredPrice;
+    return { text: structuredPrice, value: parsePriceValue(structuredPrice), selector: "structured_data.offers.price" };
   }
 
-  return "";
+  return { text: "", value: null, selector: "" };
 }
 
 function extractSeller(): string {
@@ -696,7 +784,7 @@ function extractSeller(): string {
   }
 
   const candidates = getVisibleCandidates(SELECTORS.seller);
-  return pickSeller(candidates);
+  return pickSeller(candidates.map((candidate) => candidate.text));
 }
 
 function extractRatingFromDom(): number {
@@ -761,7 +849,8 @@ function buildMetadata(
   product: Omit<ScrapedProduct, "metadata">,
   productId: string | null,
   listingId: string | null,
-  source: ScrapeSource
+  source: ScrapeSource,
+  diagnostics?: ScrapeMetadata["diagnostics"]
 ): ScrapeMetadata {
   const missingFields: MissingProductField[] = [];
   const warnings: ScrapeWarning[] = [];
@@ -813,6 +902,7 @@ function buildMetadata(
     productId: productId ?? undefined,
     listingId: listingId ?? undefined,
     source,
+    diagnostics,
     confidence,
     reviewCount: product.reviews.length,
     missingFields,
@@ -844,11 +934,10 @@ export class TrendyolScraper implements Scraper {
       reviewApiPayload.reviews.length === 0 && !reviewApiPayload.rating
         ? await fetchReviewDetailPayload()
         : { reviews: [] as string[], rating: 0, reviewCount: 0 };
-    const priceHistory = await fetchPriceHistoryPayload(listingIds, productId);
-    const listingId = priceHistory?.listingId ?? listingIds[0] ?? null;
-
     const title = extractTitle();
     const price = extractPrice();
+    const priceHistory = await fetchPriceHistoryPayload(listingIds, productId, price.value);
+    const listingId = priceHistory?.listingId ?? listingIds[0] ?? null;
     const seller = extractSeller();
     const reviews =
       reviewApiPayload.reviews.length > 0
@@ -861,7 +950,7 @@ export class TrendyolScraper implements Scraper {
 
     const product = {
       title,
-      price: price || "N/A",
+      price: price.text || "N/A",
       seller: seller || "N/A",
       reviews,
       rating,
@@ -870,7 +959,17 @@ export class TrendyolScraper implements Scraper {
 
     const scraped: ScrapedProduct = {
       ...product,
-      metadata: buildMetadata(product, productId, listingId, source),
+      metadata: buildMetadata(product, productId, listingId, source, {
+        priceText: price.text || undefined,
+        parsedPrice: price.value,
+        priceSelector: price.selector || undefined,
+        selectedListingId: listingId,
+        contentId: productId,
+        historySource: priceHistory?.source,
+        historyCount: priceHistory ? Object.keys(priceHistory.prices).length : 0,
+        historyCandidatesChecked: priceHistory?.candidatesChecked ?? Math.min(listingIds.length, 12),
+        historySelectionReason: priceHistory?.selectedReason
+      }),
       priceHistory
     };
 

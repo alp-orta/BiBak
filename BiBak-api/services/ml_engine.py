@@ -6,7 +6,7 @@ from services.trust_signals import (
     build_purchase_timing,
     build_safer_alternatives,
     build_seller_analysis,
-    parse_price_text,
+    resolve_current_price,
 )
 import re
 
@@ -347,7 +347,7 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
     explanations.append(f"Fallback analysis used after ML pipeline failure: {error_message[:120]}")
     warnings = list(dict.fromkeys(["ml_pipeline_failed"] + warnings))
 
-    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    price_info = resolve_current_price(product)
     history_store.record_snapshot(product, price_info, fraud, trust_score)
 
     return {
@@ -388,7 +388,7 @@ def analyze_product_data(product: dict) -> dict:
         ))))
         risk_flags = _append_contextual_flags([], warnings, locale)
         explanations = _contextual_explanations(price_analysis, seller_analysis, purchase_timing)
-        price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+        price_info = resolve_current_price(product)
         alternatives = build_safer_alternatives(product, trust_score, price_score)
         history_store.record_snapshot(product, price_info, fraud, trust_score)
 
@@ -444,7 +444,7 @@ def analyze_product_data(product: dict) -> dict:
     explanations = explanations[:7]
 
     safer_alternatives = build_safer_alternatives(product, trust_score, price_score)
-    price_info = parse_price_text(product.get("price", ""), product.get("parsed_price"))
+    price_info = resolve_current_price(product)
     history_store.record_snapshot(product, price_info, fraud, trust_score)
 
     return {

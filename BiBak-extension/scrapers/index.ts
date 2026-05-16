@@ -13,6 +13,8 @@ export interface ExternalPriceHistory {
   source: "trendyol_internal";
   listingId?: string;
   contentId?: string;
+  candidatesChecked?: number;
+  selectedReason?: string;
   prices: Record<string, number>;
 }
 
@@ -37,6 +39,17 @@ export type ScrapeWarning =
 export interface ScrapeMetadata {
   productId?: string;
   listingId?: string;
+  diagnostics?: {
+    priceText?: string;
+    parsedPrice?: number | null;
+    priceSelector?: string;
+    selectedListingId?: string | null;
+    contentId?: string | null;
+    historySource?: string;
+    historyCount?: number;
+    historyCandidatesChecked?: number;
+    historySelectionReason?: string;
+  };
   source: ScrapeSource;
   confidence: number;
   reviewCount: number;

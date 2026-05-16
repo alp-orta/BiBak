@@ -14,6 +14,17 @@ export interface ProductData {
   scrape_metadata?: {
     productId?: string
     listingId?: string
+    diagnostics?: {
+      priceText?: string
+      parsedPrice?: number | null
+      priceSelector?: string
+      selectedListingId?: string | null
+      contentId?: string | null
+      historySource?: string
+      historyCount?: number
+      historyCandidatesChecked?: number
+      historySelectionReason?: string
+    }
     source: string
     confidence: number
     reviewCount: number
@@ -29,6 +40,8 @@ export interface ProductData {
     source: "trendyol_internal"
     listingId?: string
     contentId?: string
+    candidatesChecked?: number
+    selectedReason?: string
     prices: Record<string, number>
   }
 }

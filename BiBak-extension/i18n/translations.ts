@@ -16,6 +16,7 @@ export interface Translations {
   analysis: string
   localFallbackNotice: string
   limitedDataNotice: string
+  priceHistoryMismatchNotice: string
   poweredBy: string
   language: string
 }
@@ -36,6 +37,7 @@ const tr: Translations = {
   analysis: "Analiz",
   localFallbackNotice: "API'ye ulaşılamadı; bu sonuç sınırlı yerel analizle üretildi.",
   limitedDataNotice: "Yorum verisi sınırlı olduğu için sonuç daha temkinli değerlendirilmelidir.",
+  priceHistoryMismatchNotice: "Canlı fiyat Trendyol fiyat geçmişinden farklı; geçmiş verisi farklı satıcı veya listing'e ait olabilir.",
   poweredBy: "BiBak AI tarafından desteklenmektedir · v1.0",
   language: "Dil",
 }
@@ -56,6 +58,7 @@ const en: Translations = {
   analysis: "Analysis",
   localFallbackNotice: "The API was unavailable; this result was generated with limited local analysis.",
   limitedDataNotice: "Review data is limited, so this result should be treated cautiously.",
+  priceHistoryMismatchNotice: "Live price differs from Trendyol history; the history may belong to another seller or listing.",
   poweredBy: "Powered by BiBak AI · v1.0",
   language: "Language",
 }
