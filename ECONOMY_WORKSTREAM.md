@@ -1,5 +1,7 @@
 # BiBak - Economy Workstream
 
+> Guncel UI/demo takip listesi icin bkz: `ECON_STREAM_ACTION_PLAN.md`.
+
 ## 1. Rol Ozeti
 
 Person 2'nin ana sorumlulugu BiBak'in urun, kullanici deneyimi, arastirma ve sunum tarafini guclendirmektir.

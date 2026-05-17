@@ -408,7 +408,9 @@ function ExplanationCard({ text }: { text: string }) {
       border: `1px solid ${tone.border}`, marginBottom: 6,
     }}>
       <Icon size={15} strokeWidth={2.4} color={tone.iconColor} style={{ flexShrink: 0, marginTop: 1 }} />
-      <span style={{ fontSize: 12, color: tone.textColor, lineHeight: 1.4 }}>{text}</span>
+      <span style={{ display: "block", fontSize: 12, color: tone.textColor, lineHeight: 1.4 }}>
+        {text}
+      </span>
     </div>
   )
 }
@@ -995,6 +997,9 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         )}
       </div>
 
+      <RecommendationCard score={data.trust_score} locale={locale} strings={strings} />
+      <LowReviewNotice data={data} scrapedData={scrapedData} locale={locale} />
+
       {/* Metrics */}
       <div style={{ padding: "0 16px 16px" }}>
         <MetricBar
@@ -1017,14 +1022,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         />
       </div>
 
-      <RecommendationCard score={data.trust_score} locale={locale} strings={strings} />
-      <ScoreFormulaPanel data={data} strings={strings} />
       <StatusNotice source={data.source} warnings={data.warnings} strings={strings} />
-
-      <LowReviewNotice data={data} scrapedData={scrapedData} locale={locale} />
-      <ReviewEvidencePanel data={data} locale={locale} strings={strings} />
-      <PriceTimingPanel data={data} locale={locale} />
-      <AlternativesPanel data={data} locale={locale} />
 
       {/* Risk Flags */}
       {data.risk_flags.length > 0 && (
@@ -1036,6 +1034,9 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         </div>
       )}
 
+      <PriceTimingPanel data={data} locale={locale} />
+      <AlternativesPanel data={data} locale={locale} />
+
       {/* Explanations */}
       {data.explanations.length > 0 && (
         <div style={{ padding: "0 16px 12px" }}>
@@ -1045,6 +1046,10 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           {data.explanations.map((exp, i) => <ExplanationCard key={i} text={exp} />)}
         </div>
       )}
+
+      <ReviewEvidencePanel data={data} locale={locale} strings={strings} />
+
+      <ScoreFormulaPanel data={data} strings={strings} />
 
       {/* Footer */}
       <div style={{ padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "center" }}>
