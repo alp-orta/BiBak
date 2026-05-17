@@ -126,11 +126,11 @@ class TrustSignalsTest(unittest.TestCase):
         self.assertEqual(result["price_analysis"]["observed_low"], 350)
         self.assertEqual(result["price_analysis"]["observed_average"], 617)
         self.assertEqual(result["price_analysis"]["latest_history_price"], 575)
-        self.assertIn("belirgin altında", result["price_analysis"]["explanation"])
+        self.assertIn("düşük görünüyor", result["price_analysis"]["explanation"])
         self.assertIn("live_price_differs_from_history", result["warnings"])
         self.assertIn("farklı satıcı/listing", result["price_analysis"]["explanation"])
         self.assertFalse(any("Güncel fiyat gözlenen fiyat geçmişiyle uyumlu." == explanation for explanation in result["explanations"]))
-        self.assertIn("belirgin altında", result["purchase_timing"]["reason"])
+        self.assertIn("iyi görünüyor", result["purchase_timing"]["reason"])
 
     def test_trendyol_datalayer_price_overrides_wrong_scraped_price(self) -> None:
         product = self._product("517,50 TL")
