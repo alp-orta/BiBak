@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BiBak | Product Trust Analysis</title>
+    <meta name="description" content="BiBak turns product reviews, price signals and seller data into a simple trust score.">
+    <meta name="theme-color" content="#576cea">
+    <meta property="og:title" content="BiBak | Product Trust Analysis">
+    <meta property="og:description" content="Check BiBak before you trust an online product.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/hero-pattern.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="nav">
+        <div class="nav-inner">
+          <a href="index.html" aria-label="BiBak home">
+            <img class="logo" src="assets/bibak-logo-colored.png" alt="BiBak">
+          </a>
+          <nav class="nav-links" aria-label="Main menu">
+            <a href="index.html" aria-current="page" data-tr="Ana sayfa" data-en="Home">Ana sayfa</a>
+            <a href="#download" data-tr="Download" data-en="Download">Download</a>
+            <a href="#features" data-tr="Özellikler" data-en="Features">Özellikler</a>
+            <a href="#get-started" data-tr="Başlangıç" data-en="Get started">Başlangıç</a>
+            <a href="how-it-works.html" data-tr="Skor" data-en="Score">Skor</a>
+            <a href="privacy.html" data-tr="Gizlilik" data-en="Privacy">Gizlilik</a>
+          </nav>
+          <div class="nav-actions">
+            <div class="language-toggle" aria-label="Language">
+              <button type="button" data-lang-option="tr" class="is-active">TR</button>
+              <button type="button" data-lang-option="en">EN</button>
+            </div>
+            <span class="button button-disabled" role="button" aria-disabled="true" data-tr="Chrome Web Store’da yakında" data-en="Coming soon on Chrome Web Store">Chrome Web Store’da yakında</span>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="hero-inner">
+            <div>
+              <p class="eyebrow" data-tr="Chrome extension" data-en="Chrome extension">Chrome extension</p>
+              <h1 data-tr="Online alışverişte ürüne güvenmeden önce BiBak’a bak." data-en="Check BiBak before you trust an online product.">Online alışverişte ürüne güvenmeden önce BiBak’a bak.</h1>
+              <p class="hero-copy" data-tr="BiBak yorumları, fiyatı ve satıcı bilgisini tek güven puanına çevirir. Sonucu kısa kanıt kartlarıyla açıklar." data-en="BiBak turns reviews, price and seller signals into one trust score. It explains the result with short evidence cards.">BiBak yorumları, fiyatı ve satıcı bilgisini tek güven puanına çevirir. Sonucu kısa kanıt kartlarıyla açıklar.</p>
+              <div class="hero-actions">
+                <span class="button button-disabled" role="button" aria-disabled="true" data-tr="Chrome’a Ekle: yakında" data-en="Add to Chrome: coming soon">Chrome’a Ekle: yakında</span>
+                <a class="button button-secondary" href="#get-started" data-tr="Nasıl başlanır?" data-en="How to get started">Nasıl başlanır?</a>
+              </div>
+              <div class="hero-badges" aria-label="BiBak highlights">
+                <span class="hero-badge" data-tr="Sahte yorum sinyali" data-en="Fake review signals">Sahte yorum sinyali</span>
+                <span class="hero-badge" data-tr="Fiyat geçmişi kontrolü" data-en="Price history check">Fiyat geçmişi kontrolü</span>
+                <span class="hero-badge" data-tr="Satıcı güveni" data-en="Seller trust">Satıcı güveni</span>
+              </div>
+            </div>
+
+            <div class="mock-browser" aria-label="BiBak product mock">
+              <div class="mock-bar" aria-hidden="true">
+                <span class="mock-dot"></span>
+                <span class="mock-dot"></span>
+                <span class="mock-dot"></span>
+              </div>
+              <aside class="trust-panel trust-panel-large" aria-label="BiBak trust panel example">
+                <div class="panel-head">
+                  <img class="panel-logo" src="assets/bibak-logo-colored.png" alt="BiBak">
+                  <span class="panel-pill" data-tr="Ürün sayfasında" data-en="On product pages">Ürün sayfasında</span>
+                </div>
+                <div class="score">
+                  <div class="score-ring">
+                    <div>
+                      <span class="score-number">82</span>
+                      <span class="score-label" data-tr="Güvenilir" data-en="Trusted">Güvenilir</span>
+                    </div>
+                  </div>
+                  <p class="decision" data-tr="Genel olarak güvenilir. Küçük uyarıları oku." data-en="Mostly trusted. Read the small notes.">Genel olarak güvenilir. Küçük uyarıları oku.</p>
+                </div>
+                <div class="metrics">
+                  <div class="metric">
+                    <div class="metric-row"><span data-tr="Yorum Güvenilirliği" data-en="Review Trust">Yorum Güvenilirliği</span><span class="metric-value">88%</span></div>
+                    <div class="track"><div class="fill" style="width: 88%"></div></div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-row"><span data-tr="Fiyat Tutarlılığı" data-en="Price Consistency">Fiyat Tutarlılığı</span><span class="metric-value">82%</span></div>
+                    <div class="track"><div class="fill" style="width: 82%"></div></div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-row"><span data-tr="Satıcı Güvenilirliği" data-en="Seller Trust">Satıcı Güvenilirliği</span><span class="metric-value">76%</span></div>
+                    <div class="track"><div class="fill" style="width: 76%"></div></div>
+                  </div>
+                </div>
+                <div class="evidence">
+                  <strong data-tr="Kanıt" data-en="Evidence">Kanıt</strong>
+                  <span data-tr="Yorumlar puanla uyumlu. Fiyat normal görünüyor." data-en="Reviews match the rating. The price looks normal.">Yorumlar puanla uyumlu. Fiyat normal görünüyor.</span>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="download">
+          <div class="download-panel">
+            <div>
+              <p class="eyebrow" data-tr="Download" data-en="Download">Download</p>
+              <h2 class="section-title" data-tr="BiBak Chrome extension yakında yayında." data-en="BiBak Chrome extension is coming soon.">BiBak Chrome extension yakında yayında.</h2>
+              <p class="section-copy" data-tr="Chrome Web Store linki hazır olduğunda bu buton doğrudan kurulum sayfasına gidecek. Demo sürüm şimdilik yerel olarak kurulabilir." data-en="When the Chrome Web Store link is ready, this button will open the install page. For now, the demo build can be installed locally.">Chrome Web Store linki hazır olduğunda bu buton doğrudan kurulum sayfasına gidecek. Demo sürüm şimdilik yerel olarak kurulabilir.</p>
+              <div class="hero-actions">
+                <span class="button button-disabled" role="button" aria-disabled="true" data-tr="Chrome Web Store’da yakında" data-en="Coming soon on Chrome Web Store">Chrome Web Store’da yakında</span>
+                <a class="button button-secondary" href="demo.html" data-tr="Demo senaryoları" data-en="Demo scenarios">Demo senaryoları</a>
+              </div>
+            </div>
+            <div class="download-status">
+              <div class="status-row"><span data-tr="Platform" data-en="Platform">Platform</span><strong>Chrome</strong></div>
+              <div class="status-row"><span data-tr="Durum" data-en="Status">Durum</span><strong data-tr="Demo hazır" data-en="Demo ready">Demo hazır</strong></div>
+              <div class="status-row"><span data-tr="Store linki" data-en="Store link">Store linki</span><strong data-tr="Yakında" data-en="Soon">Yakında</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="features">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow" data-tr="Main features" data-en="Main features">Main features</p>
+              <h2 class="section-title" data-tr="Kullanıcıya karar anında net cevap verir." data-en="Clear answers at the moment of purchase.">Kullanıcıya karar anında net cevap verir.</h2>
+              <p class="section-copy" data-tr="Metinler kısa, puanlar görünür, riskler anlaşılır kalır." data-en="Short text, visible scores and easy-to-read risk signals.">Metinler kısa, puanlar görünür, riskler anlaşılır kalır.</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-warn">!</div>
+              <h3 data-tr="Yorum kontrolü" data-en="Review check">Yorum kontrolü</h3>
+              <p data-tr="Yorumlar birbirine çok benziyorsa bunu gösterir." data-en="Shows when reviews look too similar.">Yorumlar birbirine çok benziyorsa bunu gösterir.</p>
+            </article>
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-risk">!</div>
+              <h3 data-tr="Fiyat kontrolü" data-en="Price check">Fiyat kontrolü</h3>
+              <p data-tr="Fiyat geçmişe göre garipse kullanıcıyı uyarır." data-en="Warns when the price looks unusual.">Fiyat geçmişe göre garipse kullanıcıyı uyarır.</p>
+            </article>
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-good">✓</div>
+              <h3 data-tr="Satıcı kontrolü" data-en="Seller check">Satıcı kontrolü</h3>
+              <p data-tr="Satıcı bilgisi azsa sonucu daha temkinli gösterir." data-en="Adds caution when seller data is limited.">Satıcı bilgisi azsa sonucu daha temkinli gösterir.</p>
+            </article>
+          </div>
+          <div class="product-strip" aria-label="BiBak feature examples">
+            <div class="product-tile"><strong data-tr="Güven puanı" data-en="Trust score">Güven puanı</strong><span>82 / 100</span></div>
+            <div class="product-tile"><strong data-tr="Kanıt kartları" data-en="Evidence cards">Kanıt kartları</strong><span data-tr="Kısa ve sade" data-en="Short and simple">Kısa ve sade</span></div>
+            <div class="product-tile"><strong data-tr="Veri yok durumu" data-en="No-data states">Veri yok durumu</strong><span data-tr="Açıkça söyler" data-en="Clearly shown">Açıkça söyler</span></div>
+            <div class="product-tile"><strong data-tr="Panel kontrolü" data-en="Panel control">Panel kontrolü</strong><span data-tr="Kapatılabilir" data-en="Closable">Kapatılabilir</span></div>
+          </div>
+        </section>
+
+        <section class="band" id="get-started">
+          <div class="section">
+            <p class="eyebrow" data-tr="How to get started" data-en="How to get started">How to get started</p>
+            <h2 class="section-title" data-tr="Üç adımda BiBak kullan." data-en="Use BiBak in three steps.">Üç adımda BiBak kullan.</h2>
+            <div class="steps steps-3">
+              <div class="step">
+                <span class="step-number">1</span>
+                <div>
+                  <h3 data-tr="Extension’ı kur" data-en="Install the extension">Extension’ı kur</h3>
+                  <p data-tr="Store linki hazır olunca Chrome’a ekle." data-en="Add it to Chrome when the store link is live.">Store linki hazır olunca Chrome’a ekle.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="step-number">2</span>
+                <div>
+                  <h3 data-tr="Ürün sayfasını aç" data-en="Open a product page">Ürün sayfasını aç</h3>
+                  <p data-tr="BiBak sadece ürün detay sayfasında analiz gösterir." data-en="BiBak shows analysis only on product detail pages.">BiBak sadece ürün detay sayfasında analiz gösterir.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="step-number">3</span>
+                <div>
+                  <h3 data-tr="Skor ve kanıtı oku" data-en="Read the score and evidence">Skor ve kanıtı oku</h3>
+                  <p data-tr="Almadan önce kısa uyarıları kontrol et." data-en="Check the short notes before buying.">Almadan önce kısa uyarıları kontrol et.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow" data-tr="Use cases" data-en="Use cases">Use cases</p>
+              <h2 class="section-title" data-tr="Üç demo hikayesiyle anlat." data-en="Tell the story with three demos.">Üç demo hikayesiyle anlat.</h2>
+              <p class="section-copy" data-tr="Güvenilir ürün, az veri ürünü ve riskli ürün akışı sunum için hazır." data-en="Trusted, low-data and risky product flows are ready for the pitch.">Güvenilir ürün, az veri ürünü ve riskli ürün akışı sunum için hazır.</p>
+            </div>
+            <a class="button button-primary" href="demo.html" data-tr="Demo sayfası" data-en="Demo page">Demo sayfası</a>
+          </div>
+          <div class="grid-3">
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-good">✓</div>
+              <h3 data-tr="Güvenilir ürün" data-en="Trusted product">Güvenilir ürün</h3>
+              <p data-tr="Yorum, fiyat ve satıcı sinyali dengeli görünür." data-en="Reviews, price and seller signals look balanced.">Yorum, fiyat ve satıcı sinyali dengeli görünür.</p>
+            </article>
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-warn">!</div>
+              <h3 data-tr="Az veri ürünü" data-en="Low-data product">Az veri ürünü</h3>
+              <p data-tr="Yorum veya fiyat geçmişi yoksa sonuç kesin değildir." data-en="If reviews or price history are missing, the result is not final.">Yorum veya fiyat geçmişi yoksa sonuç kesin değildir.</p>
+            </article>
+            <article class="feature feature-compact">
+              <div class="feature-icon icon-risk">!</div>
+              <h3 data-tr="Riskli ürün" data-en="Risky product">Riskli ürün</h3>
+              <p data-tr="Şüpheli yorum veya fiyat sinyali kırmızı uyarıyla gösterilir." data-en="Suspicious review or price signals are shown with a red warning.">Şüpheli yorum veya fiyat sinyali kırmızı uyarıyla gösterilir.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="cta cta-light">
+          <h2 data-tr="Canlıya hazır statik site." data-en="A static site ready to publish.">Canlıya hazır statik site.</h2>
+          <p data-tr="Bu klasör Netlify, Vercel, GitHub Pages veya herhangi bir statik host’a doğrudan yayınlanabilir." data-en="This folder can be published directly on Netlify, Vercel, GitHub Pages or any static host.">Bu klasör Netlify, Vercel, GitHub Pages veya herhangi bir statik host’a doğrudan yayınlanabilir.</p>
+          <div class="hero-actions">
+            <a class="button button-dark" href="privacy.html" data-tr="Gizliliği oku" data-en="Read privacy">Gizliliği oku</a>
+            <a class="button button-secondary" href="how-it-works.html" data-tr="Skor nasıl çalışır?" data-en="How the score works">Skor nasıl çalışır?</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-inner">
+          <span data-tr="BiBak AI tarafından desteklenir." data-en="Powered by BiBak AI.">BiBak AI tarafından desteklenir.</span>
+          <span data-tr="Hackathon demo sitesi" data-en="Hackathon demo website">Hackathon demo sitesi</span>
+        </div>
+      </footer>
+    </div>
+    <script src="assets/site.js"></script>
+  </body>
+</html>

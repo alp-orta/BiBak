@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BiBak | Demo Akışı</title>
+    <meta name="description" content="BiBak demo senaryoları: güvenilir ürün, az veri ürünü ve riskli ürün.">
+    <meta name="theme-color" content="#576cea">
+    <meta property="og:title" content="BiBak | Demo Akışı">
+    <meta property="og:description" content="BiBak demo senaryoları: güvenilir ürün, az veri ürünü ve riskli ürün.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/hero-pattern.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="nav">
+        <div class="nav-inner">
+          <a href="index.html" aria-label="BiBak ana sayfa">
+            <img class="logo" src="assets/bibak-logo-colored.png" alt="BiBak">
+          </a>
+          <nav class="nav-links" aria-label="Ana menü">
+            <a href="index.html" data-tr="Ana sayfa" data-en="Home">Ana sayfa</a>
+            <a href="how-it-works.html" data-tr="Nasıl çalışır?" data-en="How it works">Nasıl çalışır?</a>
+            <a href="demo.html" aria-current="page" data-tr="Demo" data-en="Demo">Demo</a>
+            <a href="privacy.html" data-tr="Gizlilik" data-en="Privacy">Gizlilik</a>
+          </nav>
+          <div class="nav-actions">
+            <div class="language-toggle" aria-label="Language"><button type="button" data-lang-option="tr" class="is-active">TR</button><button type="button" data-lang-option="en">EN</button></div><span class="button button-disabled" role="button" aria-disabled="true" data-tr="Chrome Web Store’da yakında" data-en="Coming soon on Chrome Web Store">Chrome Web Store’da yakında</span>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="page-header">
+          <p class="eyebrow" data-tr="Demo" data-en="Demo">Demo</p>
+          <h1 class="page-title" data-tr="Jüriye üç ürün üzerinden anlat." data-en="Tell the story with three products.">Jüriye üç ürün üzerinden anlat.</h1>
+          <p class="section-copy" data-tr="Her senaryo aynı soruyu cevaplar: “Bu ürünü alırken neye dikkat etmeliyim?”" data-en="Each scenario answers one question: “What should I check before buying?”">Her senaryo aynı soruyu cevaplar: “Bu ürünü alırken neye dikkat etmeliyim?”</p>
+        </section>
+
+        <section class="section section-narrow">
+          <article class="scenario">
+            <div class="scenario-top">
+              <div>
+                <span class="scenario-label">Senaryo 1</span>
+                <h2 data-tr="Güvenilir ürün" data-en="Trusted product">Güvenilir ürün</h2>
+                <p data-tr="Yorumlar puanla uyumlu. Fiyat normal. Satıcı bilgisi yeterli." data-en="Reviews match the rating. Price looks normal. Seller data is enough.">Yorumlar puanla uyumlu. Fiyat normal. Satıcı bilgisi yeterli.</p>
+              </div>
+              <div class="scenario-score">85+<span data-tr="Çok güvenilir" data-en="Very trusted">Çok güvenilir</span></div>
+            </div>
+            <ul>
+              <li>Panelde açık mavi tonları görünür.</li>
+              <li>Kanıt kartlarında yeşil tik kullanılır.</li>
+              <li>Mesaj kısa kalır: “Güven sinyalleri güçlü.”</li>
+            </ul>
+          </article>
+
+          <article class="scenario">
+            <div class="scenario-top">
+              <div>
+                <span class="scenario-label">Senaryo 2</span>
+                <h2 data-tr="Az veri ürünü" data-en="Low-data product">Az veri ürünü</h2>
+                <p data-tr="Yorum yok veya fiyat geçmişi yok. BiBak sonucu daha temkinli gösterir." data-en="Reviews or price history are missing. BiBak shows the result with caution.">Yorum yok veya fiyat geçmişi yok. BiBak sonucu daha temkinli gösterir.</p>
+              </div>
+              <div class="scenario-score">70<span data-tr="Kesin değil" data-en="Not final">Kesin değil</span></div>
+            </div>
+            <ul>
+              <li>Yorum kanıtı paneli gizlenir.</li>
+              <li>Fiyat alanlarında “Fiyat bilgisi yok” yazar.</li>
+              <li>Mesaj kısa kalır: “Bu üründe yorum yok.”</li>
+            </ul>
+          </article>
+
+          <article class="scenario">
+            <div class="scenario-top">
+              <div>
+                <span class="scenario-label">Senaryo 3</span>
+                <h2 data-tr="Riskli ürün" data-en="Risky product">Riskli ürün</h2>
+                <p data-tr="Bazı yorumlar çok benzer veya fiyat geçmişe göre garip görünür." data-en="Some reviews look too similar or the price looks unusual.">Bazı yorumlar çok benzer veya fiyat geçmişe göre garip görünür.</p>
+              </div>
+              <div class="scenario-score">50<span data-tr="Dikkat" data-en="Caution">Dikkat</span></div>
+            </div>
+            <ul>
+              <li>Panelde amber veya kırmızı uyarı görünür.</li>
+              <li>Kullanıcıya doğrudan sorun söylenir.</li>
+              <li>Mesaj kısa kalır: “Bazı yorumlar birbirine çok benziyor.”</li>
+            </ul>
+          </article>
+
+          <div class="mini-note">
+            <span data-tr="Demo akışı: önce ürün sayfasını göster, sonra BiBak panelini aç, skorun nedenini iki kısa kartla anlat." data-en="Demo flow: show the product page, open BiBak, then explain the score with two short cards.">Demo akışı: önce ürün sayfasını göster, sonra BiBak panelini aç, skorun nedenini iki kısa kartla anlat.</span>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-inner">
+          <span>BiBak AI tarafından desteklenir.</span>
+          <span><a href="how-it-works.html">Skor mantığı</a></span>
+        </div>
+      </footer>
+    </div>
+    <script src="assets/site.js"></script>
+  </body>
+</html>
