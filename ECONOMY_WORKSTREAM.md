@@ -1,8 +1,8 @@
-# TrustCart - Economy Workstream
+# BiBak - Economy Workstream
 
 ## 1. Rol Ozeti
 
-Person 2'nin ana sorumlulugu TrustCart'in urun, kullanici deneyimi, arastirma ve sunum tarafini guclendirmektir.
+Person 2'nin ana sorumlulugu BiBak'in urun, kullanici deneyimi, arastirma ve sunum tarafini guclendirmektir.
 
 Backend, ML modeli veya karmasik entegrasyonlarla ugrasmamali. Onun gorevi:
 
@@ -21,7 +21,7 @@ Kisaca: Teknik sistemi juriye ve kullaniciya anlamli gelen bir urune donusturmek
 
 Netlestirmesi gerekenler:
 
-- TrustCart kim icin?
+- BiBak kim icin?
   - Online alisveris yapan kullanicilar
   - Ogrenciler
   - Aileler
@@ -29,11 +29,11 @@ Netlestirmesi gerekenler:
 - Kullanici problemi ne?
   - "Bu urun gercekten guvenilir mi anlayamiyorum."
 - Urun vaadi ne?
-  - "TrustCart, urun sayfalarindaki sahte indirimleri, manipule yorumlari ve riskli satici sinyallerini aciklar."
+  - "BiBak, urun sayfalarindaki sahte indirimleri, manipule yorumlari ve riskli satici sinyallerini aciklar."
 
 Basit konumlandirma cumlesi:
 
-> TrustCart, online alisveriste urunlerin ne kadar guvenilir oldugunu analiz eden ve bunu anlasilir bir Trust Score ile aciklayan bir browser extension'dir.
+> BiBak, online alisveriste urunlerin ne kadar guvenilir oldugunu analiz eden ve bunu anlasilir bir Trust Score ile aciklayan bir browser extension'dir.
 
 ### B. Dolandiricilik ve Manipulasyon Arastirmasi
 
@@ -61,7 +61,7 @@ Arastirmasi gereken basliklar:
 
 Hazirlanacak tablo:
 
-| Pattern | Neden Riskli | TrustCart Sinyali | Kullaniciya Aciklama |
+| Pattern | Neden Riskli | BiBak Sinyali | Kullaniciya Aciklama |
 |---|---|---|---|
 | Benzer yorumlar | Kopya veya AI yorum olabilir | Yorumlar semantik olarak cok yakin | "Bircok yorum benzer ifadeler iceriyor." |
 | Yorum patlamasi | Koordineli yorum ihtimali olabilir | Kisa zamanda cok sayida yorum gelmesi | "Yorumlar dogal olmayan bir zaman araliginda yogunlasmis." |
@@ -158,7 +158,7 @@ Onerilen aksiyon:
   - Guvenilir urun
   - Supheli yorumlu urun
   - Fake indirim ve riskli satici senaryosu
-- Fake yorum ornekleri ve beklenen TrustCart ciktilari hazirlanir
+- Fake yorum ornekleri ve beklenen BiBak ciktilari hazirlanir
 
 ### Gun 5-6: Sunum ve Urun Hikayesi
 
@@ -289,7 +289,7 @@ Pitch'te ise yarayacak davranissal kavramlar:
 
 Pitch cumlesi:
 
-> TrustCart, kullanicilarin en savunmasiz oldugu satin alma aninda; sahte sosyal kanit, fake indirim ve aciliyet baskisi gibi manipulasyonlari gorunur hale getirir.
+> BiBak, kullanicilarin en savunmasiz oldugu satin alma aninda; sahte sosyal kanit, fake indirim ve aciliyet baskisi gibi manipulasyonlari gorunur hale getirir.
 
 ## 6. Demo Hazirligi
 
@@ -323,7 +323,7 @@ Demo akisi:
 
 1. Normal gorunen bir urun sayfasi acilir
 2. "Bu urune guvenir miydiniz?" diye sorulur
-3. TrustCart acilir
+3. BiBak acilir
 4. Dusuk Trust Score gosterilir
 5. Sebepler aciklanir:
    - Benzer yorumlar
@@ -333,7 +333,7 @@ Demo akisi:
 
 En guclu demo ani:
 
-> Urun disaridan guvenilir gorunuyor ama TrustCart yorumlarin yapay ve indirimin yaniltici olabilecegini ortaya cikariyor.
+> Urun disaridan guvenilir gorunuyor ama BiBak yorumlarin yapay ve indirimin yaniltici olabilecegini ortaya cikariyor.
 
 ## 7. Pitch Katkisi
 
@@ -342,12 +342,12 @@ Person 2 sunumda ozellikle su bolumleri anlatmali:
 - Problem
 - Kullanici davranisi
 - Manipulasyon ornekleri
-- TrustCart'in kullaniciya degeri
+- BiBak'in kullaniciya degeri
 - Is modeli ve pazar potansiyeli
 
 Konusma ornegi:
 
-> Online alisveriste kullanicilar yorumlara, puanlara, indirimlere ve satici rozetlerine guvenerek karar veriyor. Ancak bu sinyaller kolayca manipule edilebiliyor. TrustCart, urun sayfasindaki bu gorunmeyen riskleri analiz ederek kullaniciya anlasilir bir Trust Score ve aciklamalar sunuyor.
+> Online alisveriste kullanicilar yorumlara, puanlara, indirimlere ve satici rozetlerine guvenerek karar veriyor. Ancak bu sinyaller kolayca manipule edilebiliyor. BiBak, urun sayfasindaki bu gorunmeyen riskleri analiz ederek kullaniciya anlasilir bir Trust Score ve aciklamalar sunuyor.
 
 Vurgulanacak fark:
 
@@ -421,4 +421,4 @@ En onemli isler:
 
 En kritik dusunce:
 
-> Person 2'nin gorevi TrustCart'i teknik bir projeden cikarip, juriye "bu gercek bir urun olabilir" dedirten hale getirmektir.
+> Person 2'nin gorevi BiBak'i teknik bir projeden cikarip, juriye "bu gercek bir urun olabilir" dedirten hale getirmektir.

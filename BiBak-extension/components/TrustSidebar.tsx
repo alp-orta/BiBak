@@ -1,23 +1,60 @@
 import React, { useEffect, useState } from "react"
+import { AlertTriangle, CheckCircle2, Info, SearchCheck } from "lucide-react"
 import { type Locale, type Translations, t, LOCALE_LABELS } from "~i18n/translations"
 import { analyzeProduct, type AnalysisData } from "~api/client"
 import type { ScrapedProduct } from "~scrapers"
+import logoBlack from "data-base64:~assets/brand/logo/BiBak_logo_black.png"
+import logoColored from "data-base64:~assets/brand/logo/BiBak_logo_colored.png"
+import logoWhite from "data-base64:~assets/brand/logo/BiBak_logo_white.png"
 
 const COLORS = {
-  bg: "rgba(15, 17, 23, 0.95)",
-  card: "rgba(30, 34, 46, 0.85)",
-  border: "rgba(255,255,255,0.06)",
-  text: "#E2E8F0",
-  textDim: "#94A3B8",
-  accent: "#6366F1",
-  green: "#22C55E",
-  yellow: "#EAB308",
-  red: "#EF4444",
-  orange: "#F97316",
+  bg: "rgba(250, 252, 255, 0.98)",
+  card: "#FFFFFF",
+  softCard: "#F5F7FB",
+  border: "rgba(23, 33, 107, 0.10)",
+  text: "#17216b",
+  textDim: "#64748B",
+  accent: "#576cea",
+  brandSoft: "#aab9e8",
+  brandLight: "#9cb2f2",
+  brandStart: "#576cea",
+  brandMid: "#1f2787",
+  brandEnd: "#17216b",
+  blue: "#1f2787",
+  yellow: "#D97706",
+  red: "#DC2626",
+  orange: "#EA580C",
+  caution: "#D97706",
+  cautionSoft: "#FFF7ED",
+  riskSoft: "#FEF2F2",
 }
 
 const LOCALE_STORAGE_KEY = "bibak-locale"
 const REVIEW_DATA_WARNING_CODES = ["low_review_count", "no_reviews", "limited_review_data"]
+const NON_PRODUCT_PAGE_WARNING = "not_product_page"
+
+function BrandLogo({
+  variant = "colored",
+  width = 74
+}: {
+  variant?: "colored" | "white" | "black"
+  width?: number
+}) {
+  const src = variant === "white" ? logoWhite : variant === "black" ? logoBlack : logoColored
+
+  return (
+    <img
+      src={src}
+      alt="BiBak"
+      style={{
+        display: "block",
+        width,
+        height: "auto",
+        objectFit: "contain"
+      }}
+    />
+  )
+}
 
 function getInitialLocale(): Locale {
   try {
@@ -29,25 +66,132 @@ function getInitialLocale(): Locale {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 75) return COLORS.green
-  if (score >= 50) return COLORS.yellow
-  if (score >= 30) return COLORS.orange
-  return COLORS.red
+  return getScoreTone(score).text
 }
+
+function getScoreTone(score: number) {
+  if (score >= 85) {
+    return {
+      start: COLORS.brandSoft,
+      end: COLORS.brandLight,
+      text: COLORS.brandStart,
+      bar: COLORS.brandSoft,
+      inner: COLORS.brandSoft,
+      badgeBg: "#EEF2FF",
+      badgeText: COLORS.brandStart
+    }
+  }
+
+  if (score >= 70) {
+    return {
+      start: COLORS.brandLight,
+      end: COLORS.brandStart,
+      text: COLORS.brandStart,
+      bar: COLORS.brandLight,
+      inner: COLORS.brandLight,
+      badgeBg: "#EEF2FF",
+      badgeText: COLORS.brandStart
+    }
+  }
+
+  if (score >= 50) {
+    return {
+      start: "#FBBF24",
+      end: COLORS.caution,
+      text: COLORS.caution,
+      bar: COLORS.caution,
+      inner: COLORS.caution,
+      badgeBg: COLORS.cautionSoft,
+      badgeText: COLORS.caution
+    }
+  }
+
+  if (score >= 30) {
+    return {
+      start: COLORS.orange,
+      end: COLORS.red,
+      text: COLORS.orange,
+      bar: COLORS.orange,
+      inner: COLORS.orange,
+      badgeBg: COLORS.riskSoft,
+      badgeText: COLORS.orange
+    }
+  }
+
+  return {
+    start: COLORS.red,
+    end: COLORS.red,
+    text: COLORS.red,
+    bar: COLORS.red,
+    inner: COLORS.red,
+    badgeBg: COLORS.riskSoft,
+    badgeText: COLORS.red
+  }
+}
+
+const SCORE_GRADIENT_ID = "bibak-score-gradient"
 
 function getScoreLabel(score: number, strings: Translations) {
-  if (score >= 80) return strings.trusted
-  if (score >= 60) return strings.caution
-  if (score >= 40) return strings.risky
-  return strings.dangerous
+  if (score >= 85) return strings.veryTrusted
+  if (score >= 70) return strings.trusted
+  if (score >= 50) return strings.mixedSignals
+  if (score >= 30) return strings.risky
+  return strings.avoid
 }
 
-function ScoreRing({ score, strings, size = 130 }: { score: number; strings: Translations; size?: number }) {
+function getMetricStatusLabel(score: number, locale: Locale) {
+  if (locale === "tr") {
+    if (score >= 70) return "İyi"
+    if (score >= 50) return "Dikkat"
+    if (score >= 30) return "Risk"
+    return "Yüksek risk"
+  }
+
+  if (score >= 70) return "Good"
+  if (score >= 50) return "Caution"
+  if (score >= 30) return "Risk"
+  return "High risk"
+}
+
+function getRecommendation(score: number, locale: Locale) {
+  if (locale === "tr") {
+    if (score >= 85) return "İyi görünüyor. Yine de fiyatı kontrol edin."
+    if (score >= 70) return "Genel olarak iyi. Küçük uyarıları okuyun."
+    if (score >= 50) return "Biraz dikkat gerekiyor. Yorumlara ve fiyata bakın."
+    if (score >= 30) return "Riskli görünüyor. Başka ürünlere de bakın."
+    return "Bu ürün güven vermiyor. Almamak daha iyi olabilir."
+  }
+
+  if (score >= 85) return "Looks good. Still check the price."
+  if (score >= 70) return "Mostly good. Read the small warnings."
+  if (score >= 50) return "Be careful. Check reviews and price."
+  if (score >= 30) return "Looks risky. Check other products too."
+  return "This does not look safe to buy."
+}
+
+function formatPriceSignal(value: string | undefined, locale: Locale) {
+  const key = value || "unknown"
+  const labels: Record<string, Record<Locale, string>> = {
+    normal: { tr: "Normal", en: "Normal" },
+    below_history: { tr: "İyi fiyat", en: "Good price" },
+    suspicious_discount: { tr: "İndirime dikkat", en: "Check discount" },
+    current_price_high: { tr: "Fiyat yüksek", en: "Price is high" },
+    not_best_recent_price: { tr: "En düşük değil", en: "Not the lowest" },
+    insufficient_history: { tr: "Az bilgi var", en: "Little data" },
+    unknown: { tr: "Bilinmiyor", en: "Unknown" }
+  }
+
+  return labels[key]?.[locale] || key.replace(/_/g, " ")
+}
+
+function ScoreRing({ score, strings, size = 148 }: { score: number; strings: Translations; size?: number }) {
   const [animatedScore, setAnimatedScore] = useState(0)
   const [dashOffset, setDashOffset] = useState(339.292)
-  const color = getScoreColor(score)
+  const tone = getScoreTone(score)
   const radius = 54
   const circumference = 2 * Math.PI * radius
+  const label = getScoreLabel(score, strings)
+  const labelFontSize = label.length > 10 ? 8 : 10
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -70,33 +214,74 @@ function ScoreRing({ score, strings, size = 130 }: { score: number; strings: Tra
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+        <defs>
+          <linearGradient id={SCORE_GRADIENT_ID} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={tone.start} />
+            <stop offset="100%" stopColor={tone.end} />
+          </linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(23, 33, 107, 0.08)" strokeWidth="10" />
         <circle
           cx="60" cy="60" r={radius} fill="none"
-          stroke={color} strokeWidth="10" strokeLinecap="round"
+          stroke={`url(#${SCORE_GRADIENT_ID})`} strokeWidth="10" strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={dashOffset}
           transform="rotate(-90 60 60)"
-          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)", filter: `drop-shadow(0 0 8px ${color}80)` }}
+          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
         />
-        <circle cx="60" cy="60" r={40} fill="none" stroke={color} strokeWidth="0.5" opacity="0.15" />
+        <circle cx="60" cy="60" r={40} fill="none" stroke={tone.inner} strokeWidth="0.5" opacity="0.18" />
       </svg>
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        width: "100%", textAlign: "center", pointerEvents: "none"
       }}>
-        <span style={{ fontSize: 36, fontWeight: 800, color, lineHeight: 1, fontFamily: "'Inter', -apple-system, sans-serif" }}>
+        <span style={{ fontSize: 38, fontWeight: 800, color: tone.text, lineHeight: 1, fontFamily: "'Open Sans', -apple-system, sans-serif" }}>
           {animatedScore}
         </span>
-        <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 2, marginTop: 4 }}>
-          {getScoreLabel(score, strings)}
+        <span style={{
+          display: "block",
+          width: 92,
+          maxWidth: "72%",
+          fontSize: labelFontSize,
+          fontWeight: 800,
+          color: COLORS.textDim,
+          textTransform: "uppercase",
+          letterSpacing: label.length > 10 ? 1.25 : 2,
+          lineHeight: 1.2,
+          marginTop: 5,
+          whiteSpace: "normal",
+          overflowWrap: "normal",
+          wordBreak: "keep-all"
+        }}>
+          {label}
         </span>
       </div>
     </div>
   )
 }
 
-function MetricBar({ label, value }: { label: string; value: number }) {
-  const color = getScoreColor(value)
+function isNonProductPage(scrapedData: ScrapedProduct | null) {
+  return scrapedData?.metadata?.warnings?.includes(NON_PRODUCT_PAGE_WARNING) ?? false
+}
+
+function MetricBar({
+  label,
+  value,
+  color,
+  textColor,
+  valueLabel,
+  statusLabel
+}: {
+  label: string
+  value: number
+  color?: string
+  textColor?: string
+  valueLabel?: string
+  statusLabel?: string
+}) {
+  const tone = getScoreTone(value)
+  const barColor = color || tone.bar
+  const labelColor = textColor || tone.text
   const [width, setWidth] = useState(0)
   useEffect(() => { setTimeout(() => setWidth(value), 400) }, [value])
 
@@ -104,12 +289,28 @@ function MetricBar({ label, value }: { label: string; value: number }) {
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 11, color: COLORS.textDim, fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 11, color, fontWeight: 700 }}>{value}%</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontSize: 11, color: labelColor, fontWeight: 700 }}>{valueLabel || `${value}%`}</span>
+          {statusLabel && (
+            <span style={{
+              fontSize: 9,
+              color: tone.badgeText,
+              background: tone.badgeBg,
+              border: `1px solid ${tone.badgeText}22`,
+              borderRadius: 999,
+              padding: "1px 5px",
+              fontWeight: 700,
+              lineHeight: 1.35
+            }}>
+              {statusLabel}
+            </span>
+          )}
+        </span>
       </div>
-      <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+      <div style={{ height: 5, borderRadius: 3, background: "rgba(23, 33, 107, 0.08)", overflow: "hidden" }}>
         <div style={{
-          height: "100%", borderRadius: 3, background: `linear-gradient(90deg, ${color}CC, ${color})`,
-          width: `${width}%`, transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: `0 0 8px ${color}40`,
+          height: "100%", borderRadius: 3, background: barColor,
+          width: `${width}%`, transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: `0 0 8px ${barColor}33`,
         }} />
       </div>
     </div>
@@ -120,24 +321,94 @@ function RiskFlag({ text }: { text: string }) {
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px",
-      background: "rgba(239, 68, 68, 0.08)", borderRadius: 10,
-      border: "1px solid rgba(239, 68, 68, 0.15)", marginBottom: 6,
+      background: "#FEF2F2", borderRadius: 10,
+      border: "1px solid rgba(220, 38, 38, 0.18)", marginBottom: 6,
     }}>
       <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</span>
-      <span style={{ fontSize: 12, color: "#FCA5A5", fontWeight: 500, lineHeight: 1.4 }}>{text}</span>
+      <span style={{ fontSize: 12, color: "#991B1B", fontWeight: 600, lineHeight: 1.4 }}>{text}</span>
     </div>
   )
 }
 
+function isWarningExplanation(text: string) {
+  const normalized = text.toLocaleLowerCase("tr-TR")
+  return (
+    normalized.includes("api") ||
+    normalized.includes("yerel analiz") ||
+    normalized.includes("local analysis") ||
+    normalized.includes("sınırlı") ||
+    normalized.includes("limited") ||
+    normalized.includes("henüz yorum") ||
+    normalized.includes("no reviews")
+  )
+}
+
+function getExplanationTone(text: string) {
+  const normalized = text.toLocaleLowerCase("tr-TR")
+
+  if (
+    normalized.includes("uyumlu") ||
+    normalized.includes("tutarlı") ||
+    normalized.includes("güven veren") ||
+    normalized.includes("belirgin şüpheli yorum yok") ||
+    normalized.includes("şüphe görünmüyor") ||
+    normalized.includes("şüpheli yorum yok") ||
+    normalized.includes("normal görünüyor") ||
+    normalized.includes("nothing clearly suspicious") ||
+    normalized.includes("do not look suspicious") ||
+    normalized.includes("looks normal") ||
+    normalized.includes("consistent") ||
+    normalized.includes("aligned") ||
+    normalized.includes("no strong")
+  ) {
+    return {
+      Icon: CheckCircle2,
+      bg: "#F0FDF4",
+      border: "rgba(22, 163, 74, 0.22)",
+      iconColor: "#16A34A",
+      textColor: "#475569"
+    }
+  }
+
+  if (
+    isWarningExplanation(text) ||
+    normalized.includes("risk") ||
+    normalized.includes("anormal") ||
+    normalized.includes("şüpheli") ||
+    normalized.includes("suspicious") ||
+    normalized.includes("inconsistency") ||
+    normalized.includes("tutarsız")
+  ) {
+    return {
+      Icon: AlertTriangle,
+      bg: COLORS.cautionSoft,
+      border: "rgba(234, 88, 12, 0.22)",
+      iconColor: COLORS.caution,
+      textColor: "#64748B"
+    }
+  }
+
+  return {
+    Icon: Info,
+    bg: "#EEF2FF",
+    border: "rgba(87, 108, 234, 0.16)",
+    iconColor: COLORS.brandStart,
+    textColor: COLORS.textDim
+  }
+}
+
 function ExplanationCard({ text }: { text: string }) {
+  const tone = getExplanationTone(text)
+  const Icon = tone.Icon
+
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px",
-      background: "rgba(99, 102, 241, 0.06)", borderRadius: 10,
-      border: "1px solid rgba(99, 102, 241, 0.12)", marginBottom: 6,
+      background: tone.bg, borderRadius: 10,
+      border: `1px solid ${tone.border}`, marginBottom: 6,
     }}>
-      <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>💡</span>
-      <span style={{ fontSize: 12, color: COLORS.textDim, lineHeight: 1.4 }}>{text}</span>
+      <Icon size={15} strokeWidth={2.4} color={tone.iconColor} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span style={{ fontSize: 12, color: tone.textColor, lineHeight: 1.4 }}>{text}</span>
     </div>
   )
 }
@@ -188,6 +459,11 @@ function formatMoney(value?: number | null, currency?: string | null) {
   }
 }
 
+function formatOptionalMoney(value: number | null | undefined, currency: string | null | undefined, locale: Locale) {
+  if (typeof value !== "number") return locale === "tr" ? "Fiyat bilgisi yok" : "No price info"
+  return formatMoney(value, currency)
+}
+
 function MiniStat({ label, value, valueColor }: { label: string; value: string | number; valueColor?: string }) {
   return (
     <div style={{
@@ -200,6 +476,49 @@ function MiniStat({ label, value, valueColor }: { label: string; value: string |
   )
 }
 
+function RecommendationCard({ score, locale, strings }: { score: number; locale: Locale; strings: Translations }) {
+  const color = getScoreColor(score)
+  return (
+    <div style={{
+      margin: "0 16px 12px",
+      padding: "11px 12px",
+      background: "#F2F5FF",
+      border: `1px solid ${color}33`,
+      borderRadius: 10,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5 }}>
+        {strings.recommendation}
+      </div>
+      <p style={{ fontSize: 12, color: COLORS.text, lineHeight: 1.45, margin: 0 }}>
+        {getRecommendation(score, locale)}
+      </p>
+    </div>
+  )
+}
+
+function ScoreFormulaPanel({ data, strings }: { data: AnalysisData; strings: Translations }) {
+  const rows = [
+    { label: strings.reviewAuthenticity, value: data.review_authenticity_score, weight: 45 },
+    { label: strings.priceIntegrity, value: data.price_integrity_score, weight: 30 },
+    { label: strings.sellerReliability, value: data.seller_reliability_score, weight: 25 },
+  ]
+
+  return (
+    <InsightPanel title={strings.scoreFormula}>
+      <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "0 0 9px" }}>
+        {strings.scoreFormulaSub}
+      </p>
+      {rows.map((row) => (
+        <div key={row.label} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center", marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: COLORS.textDim }}>{row.label}</span>
+          <strong style={{ fontSize: 11, color: getScoreColor(row.value), fontWeight: 800 }}>{row.value}</strong>
+          <span style={{ fontSize: 10, color: COLORS.textDim, textAlign: "right" }}>%{row.weight}</span>
+        </div>
+      ))}
+    </InsightPanel>
+  )
+}
+
 function InsightPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ padding: "0 16px 12px" }}>
@@ -207,10 +526,11 @@ function InsightPanel({ title, children }: { title: string; children: React.Reac
         {title}
       </div>
       <div style={{
-        background: "rgba(255,255,255,0.035)",
+        background: COLORS.card,
         border: `1px solid ${COLORS.border}`,
         borderRadius: 10,
-        padding: "10px 12px"
+        padding: "10px 12px",
+        boxShadow: "0 6px 18px rgba(23, 33, 107, 0.05)"
       }}>
         {children}
       </div>
@@ -222,11 +542,15 @@ function PriceTimingPanel({ data, locale }: { data: AnalysisData; locale: Locale
   if (!data.price_analysis && !data.purchase_timing) return null
   const price = data.price_analysis
   const timing = data.purchase_timing
+  const hasPriceHistory = (price?.history_count ?? 0) > 0
   const averagePrice = price?.observed_average ?? null
   const currentPrice = price?.current_price ?? null
+  const lowPrice = hasPriceHistory ? price?.observed_low : null
+  const highPrice = hasPriceHistory ? price?.observed_high : null
+  const shownAveragePrice = hasPriceHistory ? averagePrice : null
   const currentColor = averagePrice != null && currentPrice != null
     ? currentPrice < averagePrice
-      ? COLORS.green
+      ? COLORS.blue
       : currentPrice > averagePrice
         ? COLORS.orange
         : COLORS.text
@@ -234,19 +558,70 @@ function PriceTimingPanel({ data, locale }: { data: AnalysisData; locale: Locale
   const analysisText = price?.explanation || timing?.reason
 
   return (
-    <InsightPanel title={locale === "tr" ? "Fiyat & Zamanlama" : "Price & Timing"}>
+    <InsightPanel title={locale === "tr" ? "Fiyat" : "Price"}>
       {price && (
         <>
-          <MiniStat label={locale === "tr" ? "Geçmiş" : "History"} value={price.history_count} />
-          <MiniStat label={locale === "tr" ? "En düşük" : "Low"} value={formatMoney(price.observed_low, price.currency)} />
-          <MiniStat label={locale === "tr" ? "En yüksek" : "High"} value={formatMoney(price.observed_high, price.currency)} />
-          <MiniStat label={locale === "tr" ? "Ortalama" : "Average"} value={formatMoney(averagePrice, price.currency)} />
-          <MiniStat label={locale === "tr" ? "Güncel" : "Current"} value={formatMoney(currentPrice, price.currency)} valueColor={currentColor} />
+          <MiniStat label={locale === "tr" ? "Fiyat durumu" : "Price status"} value={formatPriceSignal(price.discount_risk, locale)} valueColor={getScoreColor(price.score)} />
+          <MiniStat label={locale === "tr" ? "Fiyat kaydı" : "Saved prices"} value={price.history_count} />
+          <MiniStat label={locale === "tr" ? "En düşük" : "Low"} value={formatOptionalMoney(lowPrice, price.currency, locale)} />
+          <MiniStat label={locale === "tr" ? "En yüksek" : "High"} value={formatOptionalMoney(highPrice, price.currency, locale)} />
+          <MiniStat label={locale === "tr" ? "Ortalama" : "Average"} value={formatOptionalMoney(shownAveragePrice, price.currency, locale)} />
+          <MiniStat label={locale === "tr" ? "Güncel" : "Current"} value={formatOptionalMoney(currentPrice, price.currency, locale)} valueColor={currentColor} />
         </>
       )}
       {analysisText && (
         <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
           {analysisText}
+        </p>
+      )}
+    </InsightPanel>
+  )
+}
+
+function ReviewEvidencePanel({ data, locale, strings }: { data: AnalysisData; locale: Locale; strings: Translations }) {
+  const reviewAnalysis = data.review_analysis
+  if (!reviewAnalysis) return null
+  if (reviewAnalysis.review_scores.length === 0 || data.warnings?.includes("no_reviews")) return null
+
+  const highRiskReviews = reviewAnalysis.review_scores.filter((review) => review.fraud_score >= 60)
+  const sampleReviews = highRiskReviews
+    .filter((review) => review.text_snippet)
+    .slice(0, 2)
+
+  return (
+    <InsightPanel title={strings.reviewEvidence}>
+      <MiniStat label={strings.similarReviewGroups} value={reviewAnalysis.suspicious_clusters} valueColor={reviewAnalysis.suspicious_clusters > 0 ? COLORS.orange : COLORS.blue} />
+      <MiniStat label={strings.highRiskReviews} value={highRiskReviews.length} valueColor={highRiskReviews.length > 0 ? COLORS.orange : COLORS.blue} />
+      {sampleReviews.length > 0 ? (
+        <div style={{ marginTop: 9 }}>
+          {sampleReviews.map((review) => (
+            <p key={review.index} style={{
+              margin: "6px 0 0",
+              padding: "8px 9px",
+              borderRadius: 8,
+              background: "#FFF7ED",
+              border: "1px solid rgba(234, 88, 12, 0.18)",
+              color: "#9A3412",
+              fontSize: 11,
+              lineHeight: 1.35
+            }}>
+              “{review.text_snippet}”
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
+          {strings.noReviewManipulation}
+        </p>
+      )}
+      {locale === "tr" && highRiskReviews.length > 0 && (
+        <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
+          Benzer yorumlar puanı düşürür. Satın almadan önce orta puanlı yorumlara da bakın.
+        </p>
+      )}
+      {locale === "en" && highRiskReviews.length > 0 && (
+        <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
+          Similar reviews lower the score. Check middle-rated reviews too.
         </p>
       )}
     </InsightPanel>
@@ -260,8 +635,8 @@ function LowReviewNotice({ data, scrapedData, locale }: { data: AnalysisData; sc
   if (!show) return null
 
   const message = locale === "tr"
-    ? `Yorum sayısı düşük (${reviewCount}); sonuç daha temkinli okunmalı.`
-    : `Low review sample (${reviewCount}); treat the result cautiously.`
+    ? `Yorum az (${reviewCount}). Sonuç kesin değil.`
+    : `Few reviews (${reviewCount}). The result is not final.`
 
   return (
     <div style={{
@@ -270,7 +645,7 @@ function LowReviewNotice({ data, scrapedData, locale }: { data: AnalysisData; sc
       background: "rgba(234, 179, 8, 0.08)",
       border: "1px solid rgba(234, 179, 8, 0.18)",
       borderRadius: 10,
-      color: "#FDE68A",
+      color: "#92400E",
       fontSize: 11,
       lineHeight: 1.4
     }}>
@@ -323,7 +698,7 @@ function StatusNotice({ source, warnings, strings }: { source?: string; warnings
       background: isFallback ? "rgba(234, 179, 8, 0.08)" : "rgba(99, 102, 241, 0.06)",
       border: `1px solid ${isFallback ? "rgba(234, 179, 8, 0.18)" : "rgba(99, 102, 241, 0.12)"}`,
       borderRadius: 10,
-      color: isFallback ? "#FDE68A" : COLORS.textDim,
+      color: isFallback ? "#92400E" : COLORS.textDim,
       fontSize: 11,
       lineHeight: 1.4
     }}>
@@ -338,17 +713,44 @@ function LanguageToggle({ locale, onChange }: { locale: Locale; onChange: (l: Lo
     <button
       onClick={() => onChange(next)}
       style={{
-        background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
-        color: COLORS.textDim, cursor: "pointer", borderRadius: 6,
+        background: "rgba(23, 33, 107, 0.06)", border: "1px solid rgba(23, 33, 107, 0.08)",
+        color: "#17216b", cursor: "pointer", borderRadius: 6,
         padding: "3px 8px", fontSize: 10, fontWeight: 600,
         display: "flex", alignItems: "center", gap: 4,
-        transition: "background 0.2s", fontFamily: "'Inter', sans-serif",
+        transition: "background 0.2s", fontFamily: "'Open Sans', sans-serif",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(23, 33, 107, 0.12)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(23, 33, 107, 0.06)")}
     >
       <span style={{ fontSize: 12 }}>🌐</span>
       {LOCALE_LABELS[next]}
+    </button>
+  )
+}
+
+function MinimizeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="BiBak panelini küçült"
+      style={{
+        background: "rgba(23, 33, 107, 0.06)",
+        border: "1px solid rgba(23, 33, 107, 0.08)",
+        color: "#17216b",
+        cursor: "pointer",
+        borderRadius: 6,
+        width: 26,
+        height: 26,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 14,
+        transition: "background 0.2s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(23, 33, 107, 0.12)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(23, 33, 107, 0.06)")}
+    >
+      ✕
     </button>
   )
 }
@@ -357,12 +759,12 @@ const containerStyle: React.CSSProperties = {
   width: 320,
   maxHeight: "calc(100vh - 32px)",
   background: COLORS.bg,
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
   borderRadius: 16,
   border: `1px solid ${COLORS.border}`,
-  boxShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset",
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  boxShadow: "0 24px 70px rgba(15, 23, 42, 0.24), 0 0 0 1px rgba(255,255,255,0.85) inset",
+  fontFamily: "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   overflowX: "hidden",
   overflowY: "auto",
   overscrollBehavior: "contain",
@@ -376,6 +778,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
   const [data, setData] = useState<AnalysisData | null>(null)
   const [loading, setLoading] = useState(true)
   const strings = t(locale)
+  const reviewCount = scrapedData?.metadata?.reviewCount ?? scrapedData?.reviews.length ?? 0
 
   const handleLocaleChange = (nextLocale: Locale) => {
     setLocale(nextLocale)
@@ -395,6 +798,12 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       
       if (!scrapedData) {
         setLoading(true)
+        return
+      }
+
+      if (isNonProductPage(scrapedData)) {
+        setData(null)
+        setLoading(false)
         return
       }
 
@@ -425,13 +834,52 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
     fetchData()
   }, [locale, scrapedData, scrapeError])
 
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        title="BiBak panelini aç"
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "12px 0 0 12px",
+          background: COLORS.bg,
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 10px 36px rgba(15, 23, 42, 0.18)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+          cursor: "pointer",
+          transform: "translateX(18px)",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          fontFamily: "'Open Sans', sans-serif",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateX(0)"
+          e.currentTarget.style.boxShadow = "0 12px 42px rgba(15, 23, 42, 0.24)"
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateX(18px)"
+          e.currentTarget.style.boxShadow = "0 10px 36px rgba(15, 23, 42, 0.18)"
+        }}
+      >
+        <SearchCheck size={24} strokeWidth={2.3} color={COLORS.brandMid} />
+      </button>
+    )
+  }
+
   if (scrapeError) {
     return (
       <div style={{
         ...containerStyle,
+        position: "relative",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         minHeight: 200, gap: 16, padding: 20, textAlign: "center"
       }}>
+        <div style={{ position: "absolute", top: 12, right: 12 }}>
+          <MinimizeButton onClick={() => setCollapsed(true)} />
+        </div>
         <div style={{ fontSize: 32 }}>⚠️</div>
         <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.red, margin: 0 }}>
           Veri Çekilemedi / Could not extract data
@@ -443,13 +891,46 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
     )
   }
 
+  if (isNonProductPage(scrapedData)) {
+    return (
+      <div style={{
+        ...containerStyle,
+        position: "relative",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: 220, gap: 12, padding: 20, textAlign: "center"
+      }}>
+        <div style={{ position: "absolute", top: 12, right: 12 }}>
+          <MinimizeButton onClick={() => setCollapsed(true)} />
+        </div>
+        <div style={{
+          width: 94, height: 38, borderRadius: 12,
+          background: "rgba(99, 102, 241, 0.12)",
+          border: "1px solid rgba(99, 102, 241, 0.18)",
+          display: "flex", alignItems: "center", justifyContent: "center"
+        }}>
+          <BrandLogo variant="colored" width={68} />
+        </div>
+        <p style={{ fontSize: 14, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+          {strings.openProductPage}
+        </p>
+        <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.45, margin: 0 }}>
+          {strings.openProductPageSub}
+        </p>
+      </div>
+    )
+  }
+
   if (loading && !data) {
     return (
       <div style={{
         ...containerStyle,
+        position: "relative",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         minHeight: 300, gap: 16,
       }}>
+        <div style={{ position: "absolute", top: 12, right: 12 }}>
+          <MinimizeButton onClick={() => setCollapsed(true)} />
+        </div>
         <div style={{
           width: 44, height: 44, borderRadius: "50%",
           border: "3px solid rgba(99, 102, 241, 0.15)", borderTopColor: COLORS.accent,
@@ -469,81 +950,44 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
   }
 
   if (!data) return null
-  const scoreColor = getScoreColor(data.trust_score)
-
-  if (collapsed) {
-    return (
-      <div
-        onClick={() => setCollapsed(false)}
-        style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: COLORS.bg, backdropFilter: "blur(20px)",
-          border: `1px solid ${COLORS.border}`,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "transform 0.2s", fontFamily: "'Inter', sans-serif",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{data.trust_score}</div>
-          <div style={{ fontSize: 6, fontWeight: 600, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
-            {strings.score.toLowerCase()}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={containerStyle}>
       {/* Header */}
       <div style={{
-        padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid ${COLORS.border}`,
-        background: "linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 100%)",
+        padding: "11px 14px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        borderBottom: "1px solid rgba(23, 33, 107, 0.14)",
+        background: "#FFFFFF",
+        boxShadow: "0 10px 28px rgba(15, 23, 42, 0.08)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-            boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
-          }}>🛡️</div>
-          <div>
-            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3 }}>BiBak</span>
-            <span style={{ fontSize: 9, color: COLORS.textDim, marginLeft: 6, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1 }}>
-              {strings.trustAnalysis}
-            </span>
+            width: 92,
+            height: 36,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 4px"
+          }}>
+            <BrandLogo variant="colored" width={84} />
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <LanguageToggle locale={locale} onChange={handleLocaleChange} />
-          <button
-            onClick={() => setCollapsed(true)}
-            style={{
-              background: "rgba(255,255,255,0.05)", border: "none", color: COLORS.textDim,
-              cursor: "pointer", borderRadius: 6, width: 26, height: 26,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-          >✕</button>
+          <MinimizeButton onClick={() => setCollapsed(true)} />
         </div>
       </div>
 
       {/* Score Section */}
       <div style={{ 
-        display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 16px 16px",
+        display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 16px 12px",
         position: "relative" 
       }}>
         <ScoreRing score={data.trust_score} strings={strings} />
         {loading && (
           <div style={{
             position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(15,17,23,0.4)", display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(250,252,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center",
             borderRadius: 16, zIndex: 10
           }}>
             <div style={{ width: 20, height: 20, border: "2px solid #6366F1", borderTopColor: "transparent", borderRadius: "50%", animation: "bibak-spin 0.6s linear infinite" }} />
@@ -553,14 +997,32 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
 
       {/* Metrics */}
       <div style={{ padding: "0 16px 16px" }}>
-        <MetricBar label={strings.reviewAuthenticity} value={data.review_authenticity_score} />
-        <MetricBar label={strings.priceIntegrity} value={data.price_integrity_score} />
-        <MetricBar label={strings.sellerReliability} value={data.seller_reliability_score} />
+        <MetricBar
+          label={strings.reviewAuthenticity}
+          value={data.review_authenticity_score}
+          color={getScoreTone(data.review_authenticity_score).bar}
+          textColor={reviewCount === 0 ? COLORS.orange : getScoreTone(data.review_authenticity_score).text}
+          valueLabel={reviewCount === 0 ? strings.noReviewsMetric : undefined}
+          statusLabel={reviewCount === 0 ? undefined : getMetricStatusLabel(data.review_authenticity_score, locale)}
+        />
+        <MetricBar
+          label={strings.priceIntegrity}
+          value={data.price_integrity_score}
+          statusLabel={getMetricStatusLabel(data.price_integrity_score, locale)}
+        />
+        <MetricBar
+          label={strings.sellerReliability}
+          value={data.seller_reliability_score}
+          statusLabel={getMetricStatusLabel(data.seller_reliability_score, locale)}
+        />
       </div>
 
+      <RecommendationCard score={data.trust_score} locale={locale} strings={strings} />
+      <ScoreFormulaPanel data={data} strings={strings} />
       <StatusNotice source={data.source} warnings={data.warnings} strings={strings} />
 
       <LowReviewNotice data={data} scrapedData={scrapedData} locale={locale} />
+      <ReviewEvidencePanel data={data} locale={locale} strings={strings} />
       <PriceTimingPanel data={data} locale={locale} />
       <AlternativesPanel data={data} locale={locale} />
 
@@ -568,7 +1030,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       {data.risk_flags.length > 0 && (
         <div style={{ padding: "0 16px 12px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
-            ⚡ {strings.riskAlerts}
+            {strings.riskAlerts}
           </div>
           {data.risk_flags.map((flag, i) => <RiskFlag key={i} text={flag} />)}
         </div>
@@ -586,7 +1048,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
 
       {/* Footer */}
       <div style={{ padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "center" }}>
-        <span style={{ fontSize: 9, color: "rgba(148,163,184,0.4)", fontWeight: 500 }}>{strings.poweredBy}</span>
+        <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600 }}>{strings.poweredBy}</span>
       </div>
     </div>
   )
