@@ -29,6 +29,7 @@ export type ScrapeSource =
 export type MissingProductField = "title" | "price" | "seller" | "rating" | "reviews";
 
 export type ScrapeWarning =
+  | "not_product_page"
   | "missing_title"
   | "missing_price"
   | "missing_seller"
@@ -72,14 +73,30 @@ const SCRAPERS: Scraper[] = [
   new AmazonScraper()
 ];
 
+function isSupportedProductPage(url: string): boolean {
+  if (url.includes("trendyol.com")) {
+    return /-p-\d+/i.test(url);
+  }
+
+  if (url.includes("amazon.com") || url.includes("amazon.com.tr")) {
+    return /\/(?:dp|gp\/product)\//i.test(url);
+  }
+
+  if (url.includes("hepsiburada.com")) {
+    return /-p-[A-Za-z0-9]+/i.test(url) || /\/[A-Za-z0-9-]+-p-[A-Za-z0-9]+/i.test(url);
+  }
+
+  return false;
+}
+
 export async function scrapeCurrentPage(): Promise<ScrapedProduct> {
   const url = window.location.href;
   const scraper = SCRAPERS.find(s => s.canHandle(url));
 
-  if (!scraper) {
-    console.warn("[BiBak] No scraper found for this URL:", url);
+  if (!scraper || !isSupportedProductPage(url)) {
+    console.warn("[BiBak] No product page found for this URL:", url);
     return {
-      title: document.title || "Unknown Product",
+      title: "",
       price: "N/A",
       seller: "N/A",
       reviews: [],
@@ -87,10 +104,10 @@ export async function scrapeCurrentPage(): Promise<ScrapedProduct> {
       platform: "unknown",
       metadata: {
         source: "fallback",
-        confidence: 20,
+        confidence: 0,
         reviewCount: 0,
-        missingFields: ["price", "seller", "rating", "reviews"],
-        warnings: ["missing_price", "missing_seller", "missing_rating", "no_reviews"]
+        missingFields: ["title", "price", "seller", "rating", "reviews"],
+        warnings: ["not_product_page", "missing_title", "missing_price", "missing_seller", "missing_rating", "no_reviews"]
       }
     };
   }

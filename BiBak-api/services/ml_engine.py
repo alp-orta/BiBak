@@ -11,34 +11,41 @@ from services.trust_signals import (
 import re
 
 
+TRUST_SCORE_WEIGHTS = {
+    "review": 0.45,
+    "price": 0.30,
+    "seller": 0.25,
+}
+
+
 RISK_FLAG_MAP = {
     "tr": {
-        "semantic_cluster": "Anormal yorum benzerliği tespit edildi",
-        "statistical_outlier": "İstatistiksel olarak anormal yorum kalıpları saptandı",
-        "low_lexical_diversity": "Düşük kelime çeşitliliği — şablon yazım şüphesi",
-        "high_word_repetition": "Aşırı kelime tekrarı — bot aktivitesi olasılığı",
+        "semantic_cluster": "Bazı yorumlar birbirine çok benziyor",
+        "statistical_outlier": "Bazı yorumlar normalden farklı görünüyor",
+        "low_lexical_diversity": "Bazı yorumlar kopya gibi duruyor",
+        "high_word_repetition": "Bazı yorumlarda aynı kelimeler çok tekrar ediyor",
         "high_fraud": "Yorum güvenilirliği düşük",
-        "suspicious_discount": "Şüpheli indirim paterni tespit edildi",
-        "limited_price_history": "Fiyat geçmişi sınırlı",
-        "seller_review_risk": "Satıcı geçmişinde yorum riski var",
-        "limited_seller_history": "Satıcı geçmişi sınırlı",
-        "low_scrape_confidence": "Sayfadan çekilen veri kalitesi düşük",
-        "price_ok": "Fiyat geçmiş trendlerle tutarlı",
-        "seller_ok": "Satıcı profili normal görünüyor",
+        "suspicious_discount": "İndirim şüpheli görünüyor",
+        "limited_price_history": "Bu ürün için az fiyat bilgisi var",
+        "seller_review_risk": "Satıcı yorumlarına dikkat etmek gerek",
+        "limited_seller_history": "Satıcı hakkında az bilgi var",
+        "low_scrape_confidence": "Sayfadaki bilgiler tam okunamadı",
+        "price_ok": "Fiyat normal görünüyor",
+        "seller_ok": "Satıcı normal görünüyor",
     },
     "en": {
-        "semantic_cluster": "Abnormal review similarity detected",
-        "statistical_outlier": "Statistically anomalous review patterns found",
-        "low_lexical_diversity": "Low lexical diversity — templated writing suspected",
-        "high_word_repetition": "Excessive word repetition — possible bot activity",
-        "high_fraud": "Review authenticity is low",
-        "suspicious_discount": "Suspicious discount pattern detected",
-        "limited_price_history": "Price history is limited",
-        "seller_review_risk": "Seller history has review risk",
-        "limited_seller_history": "Seller history is limited",
-        "low_scrape_confidence": "Extracted page data quality is low",
-        "price_ok": "Price is consistent with historical trends",
-        "seller_ok": "Seller profile appears normal",
+        "semantic_cluster": "Some reviews look very similar",
+        "statistical_outlier": "Some reviews look unusual",
+        "low_lexical_diversity": "Some reviews look copied",
+        "high_word_repetition": "Some reviews repeat the same words",
+        "high_fraud": "Review trust is low",
+        "suspicious_discount": "The discount looks suspicious",
+        "limited_price_history": "There is little price info",
+        "seller_review_risk": "Some seller reviews need attention",
+        "limited_seller_history": "There is little seller info",
+        "low_scrape_confidence": "Some page info could not be read",
+        "price_ok": "The price looks normal",
+        "seller_ok": "The seller looks normal",
     },
 }
 
@@ -62,20 +69,21 @@ def _derive_risk_flags(analysis: dict, locale: str) -> list[str]:
         if "high_word_repetition" in r.get("flags", [])
     ) / review_count
 
-    has_clusters = analysis["suspicious_clusters"] > 0 and clustered_ratio >= 0.25
+    fraud_score = analysis["fraud_score"]
+    has_clusters = analysis["suspicious_clusters"] > 0 and clustered_ratio >= 0.25 and fraud_score >= 35
     if has_clusters:
         flags.append(flags_map["semantic_cluster"])
 
-    if outlier_ratio >= 0.2:
+    if outlier_ratio >= 0.2 and fraud_score >= 35:
         flags.append(flags_map["statistical_outlier"])
 
-    if low_diversity_ratio >= 0.2:
+    if low_diversity_ratio >= 0.2 and fraud_score >= 35:
         flags.append(flags_map["low_lexical_diversity"])
 
-    if high_rep_ratio >= 0.15:
+    if high_rep_ratio >= 0.15 and fraud_score >= 35:
         flags.append(flags_map["high_word_repetition"])
 
-    if analysis["fraud_score"] >= 55:
+    if fraud_score >= 55:
         flags.append(flags_map["high_fraud"])
 
     return flags
@@ -162,6 +170,20 @@ def _contextual_explanations(price_analysis: dict, seller_analysis: dict, purcha
     ]
 
 
+def _compute_trust_score(
+    review_authenticity: int,
+    price_integrity: int,
+    seller_reliability: int,
+    evidence_penalty: int = 0,
+) -> int:
+    weighted_score = (
+        review_authenticity * TRUST_SCORE_WEIGHTS["review"]
+        + price_integrity * TRUST_SCORE_WEIGHTS["price"]
+        + seller_reliability * TRUST_SCORE_WEIGHTS["seller"]
+    )
+    return max(0, min(100, int(round(weighted_score - evidence_penalty))))
+
+
 NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
 PACKAGING_TERMS = (
@@ -244,48 +266,48 @@ def _build_review_explanations(
     if locale == "tr":
         if fraud >= 55 or summary["clustered_ratio"] >= 0.35:
             explanations.append(
-                f"Yorumların yaklaşık %{round(summary['clustered_ratio'] * 100)} kadarı birbirine aşırı benzer kalıplarda; bu, puanların güvenilirliğini aşağı çekiyor."
+                f"Yorumların yaklaşık %{round(summary['clustered_ratio'] * 100)} kadarı birbirine çok benziyor. Bu yüzden yorum puanı düştü."
             )
         elif rating >= 4.0 and fraud <= 25:
             explanations.append(
-                f"Yorum tonu genel olarak {rating:.1f}/5 puanla uyumlu; görünür yorumlarda güçlü bir toplu sahtecilik paterni yok."
+                f"Yorumlar {rating:.1f}/5 puanla uyumlu görünüyor. Belirgin şüpheli yorum yok."
             )
         else:
             explanations.append(
-                "Yorumlar tamamen tutarsız görünmüyor, ancak güven puanı birkaç kalite sinyali nedeniyle temkinli hesaplandı."
+                "Yorumlarda biraz karışık durum var. Bu yüzden puan dikkatli hesaplandı."
             )
 
         if summary["packaging_ratio"] >= 0.3:
             explanations.append(
-                f"Yorumların yaklaşık %{round(summary['packaging_ratio'] * 100)} kadarı paketleme, kargo veya hediyeden bahsediyor; bunlar satıcı deneyimini anlatıyor, ürün etkisini sınırlı ölçüyor."
+                f"Yorumların yaklaşık %{round(summary['packaging_ratio'] * 100)} kadarı kargo veya paketlemeden bahsediyor. Bunlar ürünün kendisini tam anlatmaz."
             )
 
         if summary["pre_use_ratio"] >= 0.2:
             explanations.append(
-                f"Yorumların yaklaşık %{round(summary['pre_use_ratio'] * 100)} kadarı ürünü yeni denediğini veya henüz kullanmadığını söylüyor; bu yüzden yorum hacmi yüksek olsa da kanıt kalitesi orta seviyede."
+                f"Yorumların yaklaşık %{round(summary['pre_use_ratio'] * 100)} kadarı ürünü daha yeni denemiş. Bu yüzden yorumlara biraz dikkatli bakın."
             )
 
         if summary["benefit_ratio"] >= 0.15:
             explanations.append(
-                f"Yaklaşık %{round(summary['benefit_ratio'] * 100)} yorum somut etki veya kullanım sonucu anlatıyor; güven veren kısım esas olarak bu daha detaylı yorumlar."
+                f"Yaklaşık %{round(summary['benefit_ratio'] * 100)} yorum ürünü gerçekten kullanıp anlatıyor. En faydalı yorumlar bunlar."
             )
 
         if summary["negative_ratio"] >= 0.15:
             explanations.append(
-                f"Yaklaşık %{round(summary['negative_ratio'] * 100)} yorum belirgin fayda görmediğini söylüyor; olumlu puana rağmen sonuçlar herkes için aynı değil."
+                f"Yaklaşık %{round(summary['negative_ratio'] * 100)} yorum üründen memnun kalmamış. Herkes için iyi sonuç vermeyebilir."
             )
     else:
         if fraud >= 55 or summary["clustered_ratio"] >= 0.35:
             explanations.append(
-                f"About {round(summary['clustered_ratio'] * 100)}% of the reviews follow highly similar wording patterns, which materially lowers confidence in the score."
+                f"About {round(summary['clustered_ratio'] * 100)}% of reviews look very similar. This lowers the review score."
             )
         elif rating >= 4.0 and fraud <= 25:
             explanations.append(
-                f"The overall review tone is broadly consistent with the {rating:.1f}/5 rating, and the visible sample does not show a strong coordinated-review pattern."
+                f"Reviews match the {rating:.1f}/5 rating. Nothing clearly suspicious is visible."
             )
         else:
             explanations.append(
-                "The reviews are not obviously manipulated, but the trust score stays cautious because the evidence quality is mixed."
+                "The reviews are a bit mixed, so the score is careful."
             )
 
         if summary["packaging_ratio"] >= 0.3:
@@ -334,7 +356,7 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
     price_score = price_analysis["score"]
     seller_score = seller_analysis["score"]
 
-    trust_score = int(authenticity * 0.45 + price_score * 0.25 + seller_score * 0.30)
+    trust_score = _compute_trust_score(authenticity, price_score, seller_score)
 
     risk_flags: list[str] = []
     if duplicate_ratio >= 0.3:
@@ -374,20 +396,25 @@ def analyze_product_data(product: dict) -> dict:
     locale = product["locale"]
 
     if not reviews or len(reviews) < 2:
-        fraud = 25
-        authenticity = 75
+        fraud = 55 if not reviews else 40
+        authenticity = 35 if not reviews else 55
         price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
         price_score = price_analysis["score"]
         seller_score = seller_analysis["score"]
-        rating_signal = min(int(rating * 20), 100) if rating > 0 else 70
-        trust_score = max(0, min(100, int(round(
-            authenticity * 0.45
-            + price_score * 0.25
-            + seller_score * 0.20
-            + rating_signal * 0.10
-        ))))
+        evidence_penalty = 8 if not reviews else 4
+        trust_score = _compute_trust_score(authenticity, price_score, seller_score, evidence_penalty)
         risk_flags = _append_contextual_flags([], warnings, locale)
         explanations = _contextual_explanations(price_analysis, seller_analysis, purchase_timing)
+        explanations.insert(
+            0,
+            "Bu üründe yorum yok. Bu yüzden yorum puanı kesin değil."
+            if not reviews and locale == "tr"
+            else "This product has no reviews, so the review score is not certain."
+            if not reviews
+            else "Yorum sayısı çok az. Bu yüzden sonuç kesin değil."
+            if locale == "tr"
+            else "There are very few reviews, so the result is not final."
+        )
         price_info = resolve_current_price(product)
         alternatives = build_safer_alternatives(product, trust_score, price_score)
         history_store.record_snapshot(product, price_info, fraud, trust_score)
@@ -405,7 +432,7 @@ def analyze_product_data(product: dict) -> dict:
             "seller_analysis": seller_analysis,
             "purchase_timing": purchase_timing,
             "source": "api",
-            "warnings": list(dict.fromkeys(["limited_review_data"] + warnings)),
+            "warnings": list(dict.fromkeys((["no_reviews"] if not reviews else ["limited_review_data"]) + warnings)),
         }
 
     try:
@@ -420,15 +447,8 @@ def analyze_product_data(product: dict) -> dict:
     seller_score = seller_analysis["score"]
     summary = _summarize_review_mix(reviews, analysis)
 
-    rating_signal = min(int(rating * 20), 100) if rating > 0 else 70
     scrape_confidence = _scrape_confidence(product)
     scrape_penalty = 0 if scrape_confidence is None else max(0, 55 - scrape_confidence) * 0.25
-    base_trust = (
-        authenticity * 0.6
-        + seller_score * 0.2
-        + price_score * 0.1
-        + rating_signal * 0.1
-    )
     evidence_penalty = round(
         summary["packaging_ratio"] * 10
         + summary["pre_use_ratio"] * 18
@@ -436,7 +456,7 @@ def analyze_product_data(product: dict) -> dict:
         + summary["negative_ratio"] * 15
         + scrape_penalty
     )
-    trust_score = max(0, min(100, int(round(base_trust - evidence_penalty))))
+    trust_score = _compute_trust_score(authenticity, price_score, seller_score, evidence_penalty)
 
     risk_flags = _append_contextual_flags(_derive_risk_flags(analysis, locale), warnings, locale)
     explanations = _build_review_explanations(reviews, rating, analysis, locale)

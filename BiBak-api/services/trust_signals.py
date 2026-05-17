@@ -193,7 +193,7 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
             "source": history_source,
             "warnings": ["missing_price"],
             "current_price_source": price_info.get("source") or "scraped_page",
-            "explanation": "Fiyat okunamadı." if locale == "tr" else "Price could not be parsed.",
+            "explanation": "Fiyat okunamadı." if locale == "tr" else "Price could not be read.",
         }
 
     if history_count < 3:
@@ -216,7 +216,7 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
             "warnings": warnings,
             "current_price_source": price_info.get("source") or "scraped_page",
             "overrode_current_price": price_info.get("overrode_value"),
-            "explanation": "Fiyat geçmişi henüz sınırlı; indirim iddiası düşük güvenle değerlendiriliyor." if locale == "tr" else "Price history is still limited, so discount claims are evaluated with low confidence.",
+            "explanation": "Fiyat geçmişi az. İndirim gerçek mi emin değiliz." if locale == "tr" else "There is little price history, so the discount is not certain.",
         }
 
     low = min(analysis_values)
@@ -260,18 +260,18 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
     }
     explanations = {
         "tr": {
-            "normal": "Güncel fiyat gözlenen fiyat geçmişiyle uyumlu.",
-            "below_history": "Güncel fiyat geçmiş medyanın belirgin altında; ekrandaki canlı fiyat, Trendyol fiyat geçmişinden daha düşük.",
-            "suspicious_discount": "Yakın geçmişte fiyat artışı sonrası normale dönüş var; indirim güveni düşük.",
-            "current_price_high": "Güncel fiyat geçmiş medyanın belirgin üzerinde.",
-            "not_best_recent_price": "Güncel fiyat gözlenen en düşük fiyatın üzerinde.",
+            "normal": "Fiyat normal görünüyor.",
+            "below_history": "Fiyat geçmişe göre düşük görünüyor.",
+            "suspicious_discount": "Fiyat önce artmış, sonra düşmüş olabilir. İndirime dikkat edin.",
+            "current_price_high": "Fiyat geçmişe göre yüksek görünüyor.",
+            "not_best_recent_price": "Bu fiyat gördüğümüz en düşük fiyat değil.",
         },
         "en": {
-            "normal": "Current price is consistent with observed price history.",
-            "below_history": "Current live price is materially below the historical median and lower than Trendyol's stored history.",
-            "suspicious_discount": "A recent price spike followed by a return toward normal suggests a weak discount claim.",
-            "current_price_high": "Current price is materially above the historical median.",
-            "not_best_recent_price": "Current price is above the lowest observed price.",
+            "normal": "The price looks normal.",
+            "below_history": "The price looks low compared with past prices.",
+            "suspicious_discount": "The price may have gone up and then down. Check the discount.",
+            "current_price_high": "The price looks high compared with past prices.",
+            "not_best_recent_price": "This is not the lowest price we saw.",
         },
     }
 
@@ -314,13 +314,14 @@ def build_seller_analysis(
             "score": 50,
             "confidence": 0,
             "warnings": ["missing_seller"],
-            "explanation": "Satıcı bilgisi eksik." if locale == "tr" else "Seller data is missing.",
+            "explanation": "Satıcı bilgisi eksik." if locale == "tr" else "Seller info is missing.",
         }
 
+    current_review_count = len(product.get("reviews") or [])
     all_rows = snapshots + [{
         "product_key": history_store.make_product_key(product),
         "rating": rating,
-        "review_count": len(product.get("reviews") or []),
+        "review_count": current_review_count,
         "fraud_score": fraud_score,
         "scrape_confidence": scrape_confidence,
         "missing_fields": "[]",
@@ -346,17 +347,17 @@ def build_seller_analysis(
     warnings: list[str] = []
     if history_count < 3:
         warnings.append("limited_seller_history")
-    if avg_fraud >= 45:
+    if current_review_count > 0 and avg_fraud >= 45:
         warnings.append("seller_review_risk")
     if avg_confidence < 55:
         warnings.append("low_scrape_confidence")
 
-    if avg_fraud >= 45:
-        explanation = "Satıcı geçmişinde yüksek yorum riski görülüyor." if locale == "tr" else "Seller history includes elevated review risk."
+    if current_review_count > 0 and avg_fraud >= 45:
+        explanation = "Satıcı yorumlarına dikkat etmek gerek." if locale == "tr" else "Check the seller reviews."
     elif history_count < 3:
-        explanation = "Satıcı geçmişi sınırlı; puan temkinli hesaplandı." if locale == "tr" else "Seller history is limited, so the score is cautious."
+        explanation = "Satıcı hakkında az bilgi var. Bu yüzden puan kesin değil." if locale == "tr" else "There is little seller info, so the score is not final."
     else:
-        explanation = "Satıcı gözlemleri genel olarak tutarlı görünüyor." if locale == "tr" else "Seller observations look broadly consistent."
+        explanation = "Satıcı normal görünüyor." if locale == "tr" else "The seller looks normal."
 
     return {
         "seller": seller,
@@ -383,16 +384,16 @@ def build_purchase_timing(price_analysis: dict[str, Any], locale: str) -> dict[s
 
     text = {
         "tr": {
-            "buy_now": "Fiyat geçmişe göre makul; satın alma zamanı uygun görünüyor.",
-            "below_history": "Canlı fiyat geçmiş medyanın belirgin altında; fiyat açısından uygun bir zaman görünüyor.",
-            "wait": "Fiyat sinyalleri zayıf; daha iyi fiyat için beklemek mantıklı.",
-            "insufficient_data": "Satın alma zamanı için yeterli fiyat geçmişi yok.",
+            "buy_now": "Fiyat makul görünüyor.",
+            "below_history": "Fiyat geçmişe göre iyi görünüyor.",
+            "wait": "Daha iyi fiyat için beklemek mantıklı olabilir.",
+            "insufficient_data": "Fiyat için yeterli geçmiş bilgi yok.",
         },
         "en": {
-            "buy_now": "Price looks reasonable against history; timing appears acceptable.",
-            "below_history": "Live price is materially below the historical median; timing looks favorable on price.",
-            "wait": "Price signals are weak; waiting for a better price is sensible.",
-            "insufficient_data": "There is not enough price history for a timing call.",
+            "buy_now": "The price looks okay.",
+            "below_history": "The price looks good compared with past prices.",
+            "wait": "Waiting may get you a better price.",
+            "insufficient_data": "There is not enough old price info.",
         },
     }
     reason_key = "below_history" if risk == "below_history" else recommendation

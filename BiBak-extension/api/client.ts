@@ -125,18 +125,18 @@ export interface SaferAlternative {
 
 const FALLBACK_TEXT = {
   tr: {
-    backendUnavailable: "Yerel analiz kullanildi; ayrintili API analizi su anda ulasilamiyor.",
-    limitedReviewData: "Yeterli yorum verisi olmadigi icin sonuc sinirli guven sinyallerine dayaniyor.",
-    repetitiveReviews: "Yorumlarda tekrar eden kaliplar goruluyor.",
-    sparseProductData: "Urun sayfasinda fiyat veya satici bilgisi eksik.",
-    stableSignals: "Temel urun sinyalleri belirgin bir tutarsizlik gostermiyor."
+    backendUnavailable: "Sunucuya ulaşılamadı. Basit kontrol yapıldı.",
+    limitedReviewData: "Yorum az olduğu için sonuç kesin değil.",
+    repetitiveReviews: "Bazı yorumlar birbirine çok benziyor.",
+    sparseProductData: "Fiyat veya satıcı bilgisi eksik.",
+    stableSignals: "Temel bilgiler normal görünüyor."
   },
   en: {
-    backendUnavailable: "Local analysis was used because the API is currently unavailable.",
-    limitedReviewData: "The result is based on limited trust signals because review data is sparse.",
-    repetitiveReviews: "Repeated patterns were detected in the reviews.",
-    sparseProductData: "Price or seller information is missing on the product page.",
-    stableSignals: "The basic product signals do not show a clear inconsistency."
+    backendUnavailable: "The server is unavailable. A simple check was used.",
+    limitedReviewData: "There are few reviews, so the result is not final.",
+    repetitiveReviews: "Some reviews look very similar.",
+    sparseProductData: "Price or seller info is missing.",
+    stableSignals: "The basic info looks normal."
   }
 } as const
 
@@ -163,9 +163,10 @@ function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): Analysis
       ? normalizedReviews.reduce((sum, review) => sum + review.length, 0) / reviewCount
       : 0
 
-  let reviewAuthenticity = 78
+  let reviewAuthenticity = reviewCount === 0 ? 35 : 78
   reviewAuthenticity -= duplicateRatio * 45
-  if (reviewCount < 3) reviewAuthenticity -= 12
+  if (reviewCount > 0 && reviewCount < 2) reviewAuthenticity -= 23
+  else if (reviewCount < 3) reviewAuthenticity -= 12
   if (avgReviewLength > 0 && avgReviewLength < 45) reviewAuthenticity -= 10
 
   let sellerReliability = data.rating > 0 ? data.rating * 20 : 65
@@ -208,7 +209,7 @@ function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): Analysis
     explanations,
     safer_alternatives: [],
     source: "fallback",
-    warnings: ["backend_unavailable"]
+    warnings: reviewCount === 0 ? ["backend_unavailable", "no_reviews"] : ["backend_unavailable", "limited_review_data"]
   }
 }
 

@@ -4,14 +4,26 @@ export interface Translations {
   trustAnalysis: string
   analyzing: string
   analyzingSub: string
+  openProductPage: string
+  openProductPageSub: string
   score: string
+  veryTrusted: string
   trusted: string
-  caution: string
+  mixedSignals: string
   risky: string
-  dangerous: string
+  avoid: string
   reviewAuthenticity: string
+  noReviewsMetric: string
   priceIntegrity: string
   sellerReliability: string
+  scoreFormula: string
+  scoreFormulaSub: string
+  recommendation: string
+  reviewEvidence: string
+  highRiskReviews: string
+  similarReviewGroups: string
+  noReviewManipulation: string
+  priceSignal: string
   riskAlerts: string
   analysis: string
   localFallbackNotice: string
@@ -25,19 +37,31 @@ const tr: Translations = {
   trustAnalysis: "Güven Analizi",
   analyzing: "Ürün analiz ediliyor...",
   analyzingSub: "Yorumlar ve fiyat kontrol ediliyor",
+  openProductPage: "Analiz için bir ürün sayfası açın.",
+  openProductPageSub: "BiBak sadece ürün sayfalarında çalışır.",
   score: "Puan",
+  veryTrusted: "Çok Güvenilir",
   trusted: "Güvenilir",
-  caution: "Dikkat",
+  mixedSignals: "Dikkat",
   risky: "Riskli",
-  dangerous: "Tehlikeli",
+  avoid: "Uzak Dur",
   reviewAuthenticity: "Yorum Güvenilirliği",
+  noReviewsMetric: "Yorum yok",
   priceIntegrity: "Fiyat Tutarlılığı",
   sellerReliability: "Satıcı Güvenilirliği",
+  scoreFormula: "Puan Nasıl Oluştu?",
+  scoreFormulaSub: "Puan; yorum, fiyat ve satıcı bilgilerine göre hesaplanır.",
+  recommendation: "Öneri",
+  reviewEvidence: "Yorum Kanıtı",
+  highRiskReviews: "Yüksek riskli yorum",
+  similarReviewGroups: "Benzer yorum grubu",
+  noReviewManipulation: "Yorumlarda belirgin bir şüphe görünmüyor.",
+  priceSignal: "Fiyat Sinyali",
   riskAlerts: "Risk Uyarıları",
   analysis: "Analiz",
-  localFallbackNotice: "API'ye ulaşılamadı; bu sonuç sınırlı yerel analizle üretildi.",
-  limitedDataNotice: "Yorum verisi sınırlı olduğu için sonuç daha temkinli değerlendirilmelidir.",
-  priceHistoryMismatchNotice: "Canlı fiyat Trendyol fiyat geçmişinden farklı; geçmiş verisi farklı satıcı veya listing'e ait olabilir.",
+  localFallbackNotice: "Sunucuya ulaşılamadı. Sonuç daha basit bir kontrolle hazırlandı.",
+  limitedDataNotice: "Yorum az olduğu için bu sonucu dikkatli okuyun.",
+  priceHistoryMismatchNotice: "Şu anki fiyat, kayıtlı fiyatlardan farklı görünüyor.",
   poweredBy: "BiBak AI tarafından desteklenmektedir · v1.0",
   language: "Dil",
 }
@@ -46,19 +70,31 @@ const en: Translations = {
   trustAnalysis: "Trust Analysis",
   analyzing: "Analyzing product...",
   analyzingSub: "Checking reviews & pricing",
+  openProductPage: "Open a product page to analyze.",
+  openProductPageSub: "BiBak works only on product pages.",
   score: "Score",
+  veryTrusted: "Very Trusted",
   trusted: "Trusted",
-  caution: "Caution",
+  mixedSignals: "Caution",
   risky: "Risky",
-  dangerous: "Dangerous",
+  avoid: "Avoid",
   reviewAuthenticity: "Review Authenticity",
+  noReviewsMetric: "No reviews",
   priceIntegrity: "Price Integrity",
   sellerReliability: "Seller Reliability",
+  scoreFormula: "How The Score Is Built",
+  scoreFormulaSub: "The score uses reviews, price, and seller info.",
+  recommendation: "Recommendation",
+  reviewEvidence: "Review Evidence",
+  highRiskReviews: "High-risk reviews",
+  similarReviewGroups: "Similar review groups",
+  noReviewManipulation: "The visible reviews do not look suspicious.",
+  priceSignal: "Price Signal",
   riskAlerts: "Risk Alerts",
   analysis: "Analysis",
-  localFallbackNotice: "The API was unavailable; this result was generated with limited local analysis.",
-  limitedDataNotice: "Review data is limited, so this result should be treated cautiously.",
-  priceHistoryMismatchNotice: "Live price differs from Trendyol history; the history may belong to another seller or listing.",
+  localFallbackNotice: "The server is unavailable. This result used a simpler check.",
+  limitedDataNotice: "There are few reviews, so read this result carefully.",
+  priceHistoryMismatchNotice: "The current price looks different from saved prices.",
   poweredBy: "Powered by BiBak AI · v1.0",
   language: "Language",
 }
