@@ -1,4 +1,4 @@
-import { ScrapedProduct, Scraper, type ExternalPriceHistory, type MissingProductField, type ScrapeMetadata, type ScrapeSource, type ScrapeWarning } from "./index";
+import { ScrapedProduct, Scraper, type ExternalPriceHistory, type MissingProductField, type ScrapedReviewDetail, type ScrapeMetadata, type ScrapeSource, type ScrapeWarning, type SellerMetadata } from "./index";
 import { queryAll, extractText, extractNumber, waitForElement } from "./utils";
 
 const SELECTORS = {
@@ -9,6 +9,13 @@ const SELECTORS = {
     "meta[property='og:title']"
   ],
   price: [
+    "[data-testid='ty-plus-price'] .ty-plus-price-discounted-price",
+    "[data-testid='ty-plus-price']",
+    ".ty-plus-price-discounted-price",
+    ".ty-plus-price-content",
+    ".price-wrapper .discounted",
+    "[data-testid='normal-price'] .discounted",
+    "[data-testid='normal-price']",
     ".prc-dsc",
     ".prc-box-dscntd",
     ".pr-bx-nm .prc-dsc",
@@ -55,12 +62,24 @@ type ReviewComment = {
   reviewId?: number;
   comment?: string;
   rate?: number;
+  createdAt?: string;
+  creationDate?: string;
+  date?: string;
+  datePublished?: string;
+  commentDate?: string;
+  commentDateISO?: string;
+  commentDateISOtype?: string;
+  commentDateText?: string;
+  createdDate?: string;
+  reviewDate?: string;
+  lastModifiedDate?: string;
 };
 
 type DetailedReviewApiPayload = {
   rating?: number;
   totalPages?: number;
   reviews: string[];
+  reviewDetails?: ScrapedReviewDetail[];
 };
 
 type ReviewDetailPayload = {
@@ -83,6 +102,10 @@ type ProductStructuredData = {
   };
   review?: Array<{
     reviewBody?: string;
+    datePublished?: string;
+    reviewRating?: {
+      ratingValue?: string | number;
+    };
   }>;
 };
 
@@ -362,12 +385,34 @@ function isVisibleElement(element: Element): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
-function getVisibleCandidates(selectors: string[]): TextCandidate[] {
+function getProductDetailRoot(): ParentNode {
+  const rootSelectors = [
+    "[data-drroot='product-detail']",
+    "[data-fragment='product-detail']",
+    "[fragment-partial='product-detail']",
+    "[data-testid='product-detail']",
+    ".product-details-product-details-container",
+    ".product-detail-container",
+    ".product-container",
+    ".pdp-container"
+  ];
+
+  for (const selector of rootSelectors) {
+    const element = document.querySelector(selector);
+    if (element && isVisibleElement(element)) {
+      return element;
+    }
+  }
+
+  return document;
+}
+
+function getVisibleCandidates(selectors: string[], root: ParentNode = document): TextCandidate[] {
   const seen = new Set<string>();
   const candidates: TextCandidate[] = [];
 
   for (const selector of selectors) {
-    document.querySelectorAll(selector).forEach((element) => {
+    root.querySelectorAll(selector).forEach((element) => {
       if (!isVisibleElement(element)) {
         return;
       }
@@ -384,10 +429,10 @@ function getVisibleCandidates(selectors: string[]): TextCandidate[] {
   return candidates;
 }
 
-function getBasketPriceCandidates(): TextCandidate[] {
+function getBasketPriceCandidates(root: ParentNode = document): TextCandidate[] {
   const seen = new Set<string>();
   const candidates: TextCandidate[] = [];
-  document.querySelectorAll("div, span").forEach((element) => {
+  root.querySelectorAll("div, span").forEach((element) => {
     if (!isVisibleElement(element)) return;
 
     const text = extractText(element);
@@ -396,7 +441,7 @@ function getBasketPriceCandidates(): TextCandidate[] {
       text.length <= 180 &&
       text.toLocaleLowerCase("tr-TR").includes("sepette") &&
       PRICE_PATTERN.test(text) &&
-      !/\b(?:kupon|coupon|kazan)\b/i.test(text) &&
+      !isPromotionalPriceText(text) &&
       !seen.has(text)
     ) {
       seen.add(text);
@@ -405,6 +450,30 @@ function getBasketPriceCandidates(): TextCandidate[] {
   });
 
   return candidates;
+}
+
+function isPromotionalPriceText(text: string): boolean {
+  const normalized = text.toLocaleLowerCase("tr-TR");
+  if (hasBasketSalePrice(text)) {
+    return false;
+  }
+  return (
+    normalized.includes("kupon") ||
+    normalized.includes("coupon") ||
+    normalized.includes("kazan") ||
+    normalized.includes("indirim") ||
+    normalized.includes("kampanya") ||
+    normalized.includes("alt limit") ||
+    normalized.includes("fırsat") ||
+    normalized.includes("firsat") ||
+    normalized.includes("üzeri") ||
+    normalized.includes("kargo bedava") ||
+    normalized.includes("uygulanacak")
+  );
+}
+
+function hasBasketSalePrice(text: string): boolean {
+  return /sepette\b[\s\S]{0,80}(?:₺\s*)?\d[\d.]*(?:,\d{2})?\s*(?:TL|₺)/i.test(text);
 }
 
 function parsePriceValue(value: string): number | null {
@@ -422,7 +491,7 @@ function pickPrice(candidates: TextCandidate[]): PriceExtraction {
   let fallback: PriceExtraction = { text: "", value: null, selector: "" };
 
   for (const candidate of candidates) {
-    if (/\b(?:kupon|coupon|kazan)\b/i.test(candidate.text)) {
+    if (isPromotionalPriceText(candidate.text) && !hasBasketSalePrice(candidate.text)) {
       continue;
     }
 
@@ -430,15 +499,15 @@ function pickPrice(candidates: TextCandidate[]): PriceExtraction {
     const productPriceMatches = matches
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => {
-      const end = (item.index ?? 0) + item[0].length;
-      return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.text.slice(end, end + 32));
-    });
+        const end = (item.index ?? 0) + item[0].length;
+        return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(candidate.text.slice(end, end + 32));
+      });
 
     const basketPriceMatches = productPriceMatches.filter(({ item, index }) => {
       const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48);
       return candidate.text.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette");
     });
-    const basketSelected = basketPriceMatches.at(-1)?.item[0]?.trim();
+    const basketSelected = basketPriceMatches[0]?.item[0]?.trim();
     if (basketSelected) {
       return { text: basketSelected, value: parsePriceValue(basketSelected), selector: candidate.selector };
     }
@@ -481,9 +550,106 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function collectReviewCommentsById(values: ReviewComment[]): string[] {
+function normalizeReviewKey(value: string): string {
+  return normalizeText(value).toLocaleLowerCase("tr-TR");
+}
+
+function coerceReviewDate(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["date", "value", "isoDate", "formattedDate", "text"]) {
+    const nested = coerceReviewDate(record[key]);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
+function extractReviewCreatedAt(value: ReviewComment): string | undefined {
+  for (const key of [
+    "createdAt",
+    "creationDate",
+    "date",
+    "datePublished",
+    "commentDate",
+    "commentDateISO",
+    "commentDateISOtype",
+    "commentDateText",
+    "createdDate",
+    "reviewDate",
+    "lastModifiedDate"
+  ] as const) {
+    const date = coerceReviewDate(value[key]);
+    if (date) {
+      return date;
+    }
+  }
+
+  return undefined;
+}
+
+function getStructuredReviewDetails(): ScrapedReviewDetail[] {
+  const structuredData = getStructuredProductData();
+  return (structuredData?.review ?? [])
+    .map((review, index) => {
+      const text = normalizeText(review.reviewBody ?? "");
+      if (text.length <= 15) {
+        return null;
+      }
+
+      const ratingValue = review.reviewRating?.ratingValue;
+      const rating = typeof ratingValue === "number" ? ratingValue : Number(String(ratingValue ?? ""));
+
+      const detail: ScrapedReviewDetail = {
+        id: `structured-${index}`,
+        text,
+        rating: Number.isFinite(rating) && rating > 0 ? rating : undefined
+      };
+      if (review.datePublished) {
+        detail.created_at = review.datePublished;
+      }
+      return detail;
+    })
+    .filter((review): review is ScrapedReviewDetail => review !== null);
+}
+
+function enrichReviewDetailsWithStructuredDates(reviewDetails: ScrapedReviewDetail[]): ScrapedReviewDetail[] {
+  const structuredByText = new Map(
+    getStructuredReviewDetails().map((review) => [normalizeReviewKey(review.text), review])
+  );
+
+  return reviewDetails.map((review) => {
+    if (review.created_at) {
+      return review;
+    }
+
+    const structured = structuredByText.get(normalizeReviewKey(review.text));
+    if (!structured?.created_at && !structured?.rating) {
+      const { created_at: _createdAt, ...withoutUndefinedDate } = review;
+      return withoutUndefinedDate;
+    }
+
+    return {
+      ...review,
+      rating: review.rating ?? structured.rating,
+      created_at: structured.created_at
+    };
+  });
+}
+
+function collectReviewDetailsById(values: ReviewComment[]): ScrapedReviewDetail[] {
   const seenIds = new Set<number>();
-  const texts: string[] = [];
+  const seenTexts = new Set<string>();
+  const details: ScrapedReviewDetail[] = [];
 
   for (const value of values) {
     const reviewId = value.reviewId ?? value.id;
@@ -496,11 +662,29 @@ function collectReviewCommentsById(values: ReviewComment[]): string[] {
 
     const text = normalizeText(value.comment ?? "");
     if (text.length > 15) {
-      texts.push(text);
+      const key = `${reviewId ?? ""}:${text}`;
+      if (seenTexts.has(key)) {
+        continue;
+      }
+      seenTexts.add(key);
+      const detail: ScrapedReviewDetail = {
+        id: reviewId,
+        text,
+        rating: typeof value.rate === "number" ? value.rate : undefined
+      };
+      const createdAt = extractReviewCreatedAt(value);
+      if (createdAt) {
+        detail.created_at = createdAt;
+      }
+      details.push(detail);
     }
   }
 
-  return texts;
+  return details;
+}
+
+function collectReviewCommentsById(values: ReviewComment[]): string[] {
+  return collectReviewDetailsById(values).map((review) => review.text);
 }
 
 function collectReviewStrings(payload: unknown, seen = new Set<unknown>()): string[] {
@@ -638,6 +822,7 @@ async function fetchPriceHistoryPayload(
 async function fetchDetailedReviewsPayload(productId: string, targetCount = TARGET_REVIEW_COUNT): Promise<DetailedReviewApiPayload> {
   try {
     const reviews: string[] = [];
+    const reviewDetails: ScrapedReviewDetail[] = [];
     let rating = 0;
     let totalPages = 1;
     const pagesToFetch = Math.max(1, Math.ceil(targetCount / 20));
@@ -663,14 +848,15 @@ async function fetchDetailedReviewsPayload(productId: string, targetCount = TARG
       }
 
       const pageReviews = Array.isArray(result.reviews)
-        ? collectReviewCommentsById(result.reviews as ReviewComment[])
+        ? collectReviewDetailsById(result.reviews as ReviewComment[])
         : [];
 
       for (const review of pageReviews) {
         if (reviews.length >= targetCount) {
           break;
         }
-        reviews.push(review);
+        reviews.push(review.text);
+        reviewDetails.push(review);
       }
 
       const averageRating = result.summary?.averageRating;
@@ -687,7 +873,8 @@ async function fetchDetailedReviewsPayload(productId: string, targetCount = TARG
     return {
       rating,
       totalPages,
-      reviews
+      reviews,
+      reviewDetails
     };
   } catch (error) {
     console.warn("[BiBak] Trendyol detailed reviews API failed", error);
@@ -747,19 +934,25 @@ function extractTitle(): string {
 }
 
 function extractPrice(): PriceExtraction {
-  const basketPrice = pickPrice(getBasketPriceCandidates());
+  const productRoot = getProductDetailRoot();
+  const direct = pickPrice(getVisibleCandidates(SELECTORS.price, productRoot));
+
+  if (direct.text && hasBasketSalePrice(direct.text)) {
+    return direct;
+  }
+
+  const basketPrice = pickPrice(getBasketPriceCandidates(productRoot));
   if (basketPrice.text) {
     return basketPrice;
+  }
+
+  if (direct.text) {
+    return direct;
   }
 
   const dataLayerPrice = getProductPriceFromDataLayer();
   if (dataLayerPrice.text) {
     return dataLayerPrice;
-  }
-
-  const direct = pickPrice(getVisibleCandidates(SELECTORS.price));
-  if (direct.text) {
-    return direct;
   }
 
   const structuredData = getStructuredProductData();
@@ -787,6 +980,100 @@ function extractSeller(): string {
   return pickSeller(candidates.map((candidate) => candidate.text));
 }
 
+function parseTurkishCompactNumber(value: string): number | undefined {
+  const normalized = value
+    .replace(/\s+/g, " ")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+  const match = normalized.match(/(\d+(?:\.\d+)?)\s*([bmk])?/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) {
+    return undefined;
+  }
+
+  const suffix = match[2]?.toLocaleLowerCase("tr-TR");
+  const multiplier = suffix === "m" ? 1_000_000 : suffix === "b" || suffix === "k" ? 1_000 : 1;
+  return Math.round(amount * multiplier);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseSellerScore(value: string): number | undefined {
+  const match = value.trim().match(/^(10|[1-9](?:[,.]\d)?)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const score = Number(match[1].replace(",", "."));
+  return Number.isFinite(score) && score >= 0 && score <= 10 ? score : undefined;
+}
+
+function extractMarketplaceSellerScore(sellerName?: string): number | undefined {
+  const sellerInfo = document.querySelector(".seller-info");
+  const scoreElement = sellerInfo?.querySelector("[data-testid='score-badge'], .score-badge")
+    ?? document.querySelector("[data-testid='score-badge'], .score-badge");
+  const scoreFromElement = scoreElement ? parseSellerScore(extractText(scoreElement)) : undefined;
+  if (scoreFromElement !== undefined) {
+    return scoreFromElement;
+  }
+
+  const bodyText = document.body.innerText || "";
+  const sellerPattern = sellerName ? escapeRegex(sellerName) : "Satıcı";
+  const focusedMatch = bodyText.match(new RegExp(`${sellerPattern}\\s+(10|[1-9](?:[,.]\\d)?)\\s+(?:[\\d,.]+\\s*[BMK]?\\s*)?Takipçi`, "i"));
+  const explicitMatch = bodyText.match(/(?:Satıcı Puanı|Satıcı puanı|seller score)\D*(10|[1-9](?:[,.]\d)?)/i);
+
+  return parseSellerScore(focusedMatch?.[1] ?? explicitMatch?.[1] ?? "");
+}
+
+function extractSellerMetadata(seller: string): SellerMetadata {
+  const bodyText = document.body.innerText || "";
+  const sellerName = seller && seller !== "N/A" ? seller : undefined;
+  const verifiedTextPattern = /onaylı satıcı|doğrulanmış satıcı|dogrulanmis satici|resmi satıcı|resmi mağaza|verified seller|official store/i;
+  const verifiedIconAvailable = Array.from(document.querySelectorAll("[class*='verified'], [class*='verify'], [class*='official'], [data-testid*='verified'], [data-testid*='official'], [aria-label*='Onay'], [aria-label*='Verified']"))
+    .some((element) => isVisibleElement(element));
+  const sellerBadges = Array.from(
+    new Set(
+      [
+        ...Array.from(document.querySelectorAll("[class*='badge'], [class*='seller'], [class*='merchant'], [data-testid*='seller'], [data-testid*='merchant']"))
+          .map((element) => extractText(element))
+          .filter((text) => text.length > 0 && text.length <= 80),
+        bodyText.includes("Hızlı Satıcı") ? "Hızlı Satıcı" : "",
+        bodyText.includes("Kargo Bedava") ? "Kargo Bedava" : "",
+        verifiedTextPattern.test(bodyText) || verifiedIconAvailable ? "Doğrulanmış Satıcı" : ""
+      ]
+        .map((value) => value.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 12);
+
+  const marketplaceSellerScore = extractMarketplaceSellerScore(sellerName);
+  const followerMatch = bodyText.match(/(\d+(?:[,.]\d+)?)\s*([BMK])?\s*Takipçi/i);
+  const storeLink = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))
+    .find((link) => {
+      const text = extractText(link);
+      const href = link.href || "";
+      return text.includes("MAĞAZAYA GİT") || (!!sellerName && text.includes(sellerName)) || href.includes("/magaza/");
+    });
+
+  return {
+    seller_name: sellerName,
+    marketplace_seller_score: marketplaceSellerScore,
+    seller_follower_count: followerMatch ? parseTurkishCompactNumber(`${followerMatch[1]}${followerMatch[2] ?? ""}`) : undefined,
+    seller_badges: sellerBadges,
+    verified_badge_available: verifiedTextPattern.test(bodyText) || verifiedIconAvailable,
+    fast_delivery_available: /hızlı teslimat|hızlı satıcı|yarın kargoda|en geç yarın/i.test(bodyText),
+    free_shipping_available: /kargo bedava|ücretsiz kargo/i.test(bodyText),
+    store_url: storeLink?.href
+  };
+}
+
 function extractRatingFromDom(): number {
   const structuredData = getStructuredProductData();
   const structuredRating = structuredData?.aggregateRating?.ratingValue;
@@ -802,12 +1089,7 @@ function extractRatingFromDom(): number {
 }
 
 function extractReviewsFromDom(): string[] {
-  const structuredData = getStructuredProductData();
-  const structuredReviews = uniqueTexts(
-    (structuredData?.review ?? [])
-      .map((review) => review.reviewBody ?? "")
-      .filter(Boolean)
-  );
+  const structuredReviews = uniqueTexts(getStructuredReviewDetails().map((review) => review.text));
   if (structuredReviews.length > 0) {
     return structuredReviews;
   }
@@ -939,6 +1221,7 @@ export class TrendyolScraper implements Scraper {
     const priceHistory = await fetchPriceHistoryPayload(listingIds, productId, price.value);
     const listingId = priceHistory?.listingId ?? listingIds[0] ?? null;
     const seller = extractSeller();
+    const sellerMetadata = extractSellerMetadata(seller);
     const reviews =
       reviewApiPayload.reviews.length > 0
         ? reviewApiPayload.reviews
@@ -946,6 +1229,13 @@ export class TrendyolScraper implements Scraper {
           ? reviewDetailPayload.reviews
           : extractReviewsFromDom();
     const rating = reviewApiPayload.rating || reviewDetailPayload.rating || extractRatingFromDom();
+    const reviewDetails = enrichReviewDetailsWithStructuredDates(
+      detailedReviewPayload.reviewDetails?.length
+        ? detailedReviewPayload.reviewDetails
+        : getStructuredReviewDetails().length > 0
+          ? getStructuredReviewDetails()
+          : reviews.map((review) => ({ text: review, rating: rating || undefined }))
+    );
     const source = resolveReviewSource(detailedReviewPayload, reviewApiPayload, reviewDetailPayload, reviews);
 
     const product = {
@@ -953,8 +1243,10 @@ export class TrendyolScraper implements Scraper {
       price: price.text || "N/A",
       seller: seller || "N/A",
       reviews,
+      reviewDetails,
       rating,
-      platform: "trendyol"
+      platform: "trendyol",
+      sellerMetadata
     } satisfies Omit<ScrapedProduct, "metadata">;
 
     const scraped: ScrapedProduct = {
@@ -981,8 +1273,10 @@ export class TrendyolScraper implements Scraper {
       reviewsCount: scraped.reviews.length,
       listingIdsChecked: listingIds.length,
       priceHistoryCount: scraped.priceHistory ? Object.keys(scraped.priceHistory.prices).length : 0,
+      sellerMetadata: scraped.sellerMetadata,
       metadata: scraped.metadata,
-      reviewSample: scraped.reviews.slice(0, 3)
+      reviewSample: scraped.reviews.slice(0, 3),
+      reviewDetailsSample: scraped.reviewDetails?.slice(0, 3)
     });
 
     if (!scraped.title && scraped.reviews.length === 0) {

@@ -129,7 +129,14 @@ def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> t
     scrape_confidence = _scrape_confidence(product)
 
     price_analysis = build_price_analysis(product, product_history, locale)
-    seller_analysis = build_seller_analysis(product, seller_history, fraud_score, scrape_confidence, locale)
+    seller_analysis = build_seller_analysis(
+        product,
+        seller_history,
+        fraud_score,
+        scrape_confidence,
+        locale,
+        pricing_signals=_build_pricing_signals(product, price_analysis),
+    )
     purchase_timing = build_purchase_timing(price_analysis, locale)
 
     warnings = list(dict.fromkeys(
@@ -143,6 +150,61 @@ def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> t
     return price_analysis, seller_analysis, purchase_timing, warnings
 
 
+def _build_contextual_signals_with_review_analysis(product: dict, analysis: dict, locale: str) -> tuple[dict, dict, dict, list[str]]:
+    product_key = history_store.make_product_key(product)
+    product_history = history_store.get_product_snapshots(product_key)
+    seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
+    scrape_confidence = _scrape_confidence(product)
+
+    price_analysis = build_price_analysis(product, product_history, locale)
+    seller_analysis = build_seller_analysis(
+        product,
+        seller_history,
+        analysis["fraud_score"],
+        scrape_confidence,
+        locale,
+        review_analysis=analysis,
+        pricing_signals=_build_pricing_signals(product, price_analysis),
+    )
+    purchase_timing = build_purchase_timing(price_analysis, locale)
+
+    warnings = list(dict.fromkeys(
+        price_analysis.get("warnings", [])
+        + seller_analysis.get("warnings", [])
+        + _extract_scrape_warnings(product)
+    ))
+    if scrape_confidence is not None and scrape_confidence < 55 and "low_scrape_confidence" not in warnings:
+        warnings.append("low_scrape_confidence")
+
+    return price_analysis, seller_analysis, purchase_timing, warnings
+
+
+def _build_pricing_signals(product: dict, price_analysis: dict) -> list[dict]:
+    explicit = product.get("pricing_signals") or []
+    if isinstance(explicit, dict):
+        explicit = [explicit]
+    signals = [item for item in explicit if isinstance(item, dict)] if isinstance(explicit, list) else []
+
+    current = price_analysis.get("current_price")
+    observed_high = price_analysis.get("observed_high")
+    latest_history = price_analysis.get("latest_history_price")
+    if isinstance(current, (int, float)) and current > 0:
+        anchor_candidates = [
+            value for value in (observed_high, latest_history)
+            if isinstance(value, (int, float)) and value > current
+        ]
+        if anchor_candidates:
+            original_price = max(anchor_candidates)
+            signals.append({
+                "original_price": original_price,
+                "sale_price": current,
+                "discount_percent": (original_price - current) / original_price * 100.0,
+                "source": price_analysis.get("source") or "price_analysis",
+            })
+
+    return signals
+
+
 def _append_contextual_flags(risk_flags: list[str], warnings: list[str], locale: str) -> list[str]:
     flags_map = RISK_FLAG_MAP.get(locale, RISK_FLAG_MAP["en"])
     additions = {
@@ -151,6 +213,13 @@ def _append_contextual_flags(risk_flags: list[str], warnings: list[str], locale:
         "limited_seller_history": "limited_seller_history",
         "seller_review_risk": "seller_review_risk",
         "low_scrape_confidence": "low_scrape_confidence",
+        "missing_marketplace_seller_score": "limited_seller_history",
+        "low_marketplace_seller_score": "seller_review_risk",
+        "weak_seller_identity": "limited_seller_history",
+        "limited_fulfillment_signals": "limited_seller_history",
+        "limited_marketplace_traction": "limited_seller_history",
+        "product_context_risk": "seller_review_risk",
+        "seller_trust_critical": "seller_review_risk",
     }
     for warning, flag_key in additions.items():
         if warning in warnings:
@@ -161,13 +230,19 @@ def _append_contextual_flags(risk_flags: list[str], warnings: list[str], locale:
 
 
 def _contextual_explanations(price_analysis: dict, seller_analysis: dict, purchase_timing: dict) -> list[str]:
-    return [
+    explanations = [
         item
         for item in (
             seller_analysis.get("explanation"),
         )
         if isinstance(item, str) and item
     ]
+    explanations.extend(
+        item
+        for item in seller_analysis.get("explanations", [])
+        if isinstance(item, str) and item and item not in explanations
+    )
+    return explanations
 
 
 def _compute_trust_score(
@@ -442,7 +517,7 @@ def analyze_product_data(product: dict) -> dict:
 
     fraud = analysis["fraud_score"]
     authenticity = analysis["review_authenticity_score"]
-    price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
+    price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals_with_review_analysis(product, analysis, locale)
     price_score = price_analysis["score"]
     seller_score = seller_analysis["score"]
     summary = _summarize_review_mix(reviews, analysis)

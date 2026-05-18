@@ -7,6 +7,7 @@ from statistics import median
 from typing import Any
 from urllib.request import Request, urlopen
 
+from seller_analyzer import analyze_seller
 from services import history_store
 
 
@@ -17,6 +18,7 @@ PRICE_RE = re.compile(
 UNIT_PRICE_RE = re.compile(r"^\s*(?:/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)", re.I)
 TRENDYOL_DATALAYER_PRICE_RE = re.compile(r'"product_price"\s*:\s*(\d+(?:\.\d+)?)')
 TRENDYOL_PRICE_CACHE_TTL_SECONDS = 300
+TRENDYOL_DATALAYER_OVERRIDE_THRESHOLD = 0.12
 _TRENDYOL_PRICE_CACHE: dict[str, tuple[float, float]] = {}
 
 
@@ -53,7 +55,7 @@ def parse_price_text(price_text: str, parsed_price: dict[str, Any] | None = None
             for index, match in product_price_matches
             if _is_basket_price_match(text, matches, index)
         ]
-        match = (basket_price_matches or [match for _, match in product_price_matches])[-1]
+        match = basket_price_matches[0] if basket_price_matches else [match for _, match in product_price_matches][-1]
         number = match.group("prefix_number") or match.group("suffix_number") or ""
         if "," in number and "." in number:
             normalized = number.replace(".", "").replace(",", ".")
@@ -129,7 +131,17 @@ def resolve_current_price(product: dict[str, Any]) -> dict[str, Any]:
     if datalayer_price is None:
         return price_info
 
-    if not isinstance(current, (int, float)) or abs(float(current) - datalayer_price) / datalayer_price >= 0.05:
+    if not isinstance(current, (int, float)):
+        should_override = True
+    else:
+        current_price = float(current)
+        relative_difference = abs(current_price - datalayer_price) / datalayer_price
+        should_override = (
+            relative_difference >= TRENDYOL_DATALAYER_OVERRIDE_THRESHOLD
+            and datalayer_price < current_price
+        )
+
+    if should_override:
         return {
             "value": datalayer_price,
             "currency": "TRY",
@@ -303,6 +315,8 @@ def build_seller_analysis(
     fraud_score: int,
     scrape_confidence: int | None,
     locale: str,
+    review_analysis: dict[str, Any] | None = None,
+    pricing_signals: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     seller = product.get("seller") or ""
     rating = float(product.get("rating") or 0.0)
@@ -328,47 +342,67 @@ def build_seller_analysis(
     }]
     history_count = len(all_rows)
     product_count = len({row.get("product_key") for row in all_rows if row.get("product_key")})
-    ratings = [float(row["rating"]) for row in all_rows if row.get("rating")]
     fraud_scores = [float(row["fraud_score"]) for row in all_rows if row.get("fraud_score") is not None]
+    trust_scores = [float(row["trust_score"]) for row in all_rows if row.get("trust_score") is not None]
     confidences = [float(row["scrape_confidence"]) for row in all_rows if row.get("scrape_confidence") is not None]
 
-    avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
     avg_fraud = sum(fraud_scores) / len(fraud_scores) if fraud_scores else fraud_score
     avg_confidence = sum(confidences) / len(confidences) if confidences else 70.0
 
-    score = 62
-    if avg_rating:
-        score += (avg_rating - 3.0) * 12
-    score += min(product_count, 5) * 4
-    score -= avg_fraud * 0.35
-    if avg_confidence < 55:
-        score -= 8
-
-    warnings: list[str] = []
     if history_count < 3:
-        warnings.append("limited_seller_history")
-    if current_review_count > 0 and avg_fraud >= 45:
-        warnings.append("seller_review_risk")
-    if avg_confidence < 55:
-        warnings.append("low_scrape_confidence")
-
-    if current_review_count > 0 and avg_fraud >= 45:
-        explanation = "Satıcı yorumlarına dikkat etmek gerek." if locale == "tr" else "Check the seller reviews."
-    elif history_count < 3:
         explanation = "Satıcı hakkında az bilgi var. Bu yüzden puan kesin değil." if locale == "tr" else "There is little seller info, so the score is not final."
     else:
         explanation = "Satıcı normal görünüyor." if locale == "tr" else "The seller looks normal."
+
+    seller_metadata = dict(product.get("seller_metadata") or {})
+    seller_metadata.setdefault("name", seller)
+    seller_metadata.setdefault("seller_name", seller)
+    seller_metadata["observed_seller_history_count"] = history_count
+    seller_metadata["observed_product_count"] = product_count
+    if trust_scores:
+        seller_metadata["avg_historical_trust_score"] = sum(trust_scores) / len(trust_scores)
+    if fraud_scores:
+        seller_metadata["avg_historical_fraud_score"] = avg_fraud
+    if "seller_age_days" not in seller_metadata and "account_age_days" not in seller_metadata:
+        first_seen = min((row.get("created_at") for row in all_rows if row.get("created_at")), default=None)
+        if first_seen:
+            seller_metadata["first_seen"] = first_seen
+
+    seller_intelligence = analyze_seller(
+        seller_metadata=seller_metadata,
+        review_analysis=review_analysis or {
+            "fraud_score": fraud_score,
+            "review_authenticity_score": max(0, min(100, 100 - fraud_score)),
+            "cluster_data": [],
+        },
+        pricing_signals=pricing_signals or product.get("pricing_signals") or [],
+        locale=locale,
+    )
+    seller_flags = seller_intelligence["seller_flags"]
+    warnings: list[str] = []
+    if history_count < 3:
+        warnings.append("limited_seller_history")
+    if avg_confidence < 55:
+        warnings.append("low_scrape_confidence")
+    warnings.extend(seller_flags)
+
+    confidence = clamp(min(95, 40 + history_count * 10))
 
     return {
         "seller": seller,
         "history_count": history_count,
         "observed_products": product_count,
-        "average_rating": round(avg_rating, 2) if avg_rating else None,
         "average_fraud_score": round(avg_fraud, 1),
-        "score": clamp(score, 25, 98),
-        "confidence": clamp(min(95, 40 + history_count * 10)),
-        "warnings": warnings,
+        "score": seller_intelligence["seller_reliability_score"],
+        "seller_core_score": seller_intelligence["seller_core_score"],
+        "seller_context_adjustment": seller_intelligence["seller_context_adjustment"],
+        "risk_level": seller_intelligence["risk_level"],
+        "seller_flags": seller_flags,
+        "feature_summary": seller_intelligence["feature_summary"],
+        "confidence": confidence,
+        "warnings": list(dict.fromkeys(warnings)),
         "explanation": explanation,
+        "explanations": seller_intelligence["explanations"],
     }
 
 

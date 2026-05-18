@@ -426,7 +426,7 @@ function parsePriceText(price: string): { value: number | null; currency: string
     const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48)
     return normalizedText.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette")
   })
-  const match = (basketPriceMatches.at(-1) || productPriceMatches.at(-1))?.item
+  const match = (basketPriceMatches[0] || productPriceMatches.at(-1))?.item
   if (!match) return { value: null, currency: null, raw: price }
 
   const number = match[2] || match[3]
@@ -814,6 +814,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           price: scrapedData.price,
           seller: scrapedData.seller,
           reviews: scrapedData.reviews,
+          review_details: scrapedData.reviewDetails,
           rating: scrapedData.rating,
           locale,
           platform: scrapedData.platform,
@@ -821,7 +822,8 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           url: window.location.href,
           scrape_metadata: scrapedData.metadata,
           parsed_price: parsePriceText(scrapedData.price),
-          external_price_history: scrapedData.priceHistory
+          external_price_history: scrapedData.priceHistory,
+          seller_metadata: scrapedData.sellerMetadata
         })
         setData(res)
       } catch (err) {

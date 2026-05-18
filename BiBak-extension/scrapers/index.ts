@@ -3,10 +3,31 @@ export interface ScrapedProduct {
   price: string;
   seller: string;
   reviews: string[];
+  reviewDetails?: ScrapedReviewDetail[];
   rating: number;
   platform: "trendyol" | "hepsiburada" | "amazon" | "unknown";
+  sellerMetadata?: SellerMetadata;
   metadata?: ScrapeMetadata;
   priceHistory?: ExternalPriceHistory;
+}
+
+export interface SellerMetadata {
+  marketplace_seller_score?: number;
+  seller_age_days?: number;
+  seller_follower_count?: number;
+  seller_badges?: string[];
+  verified_badge_available?: boolean;
+  fast_delivery_available?: boolean;
+  free_shipping_available?: boolean;
+  store_url?: string;
+  seller_name?: string;
+}
+
+export interface ScrapedReviewDetail {
+  id?: string | number;
+  text: string;
+  rating?: number;
+  created_at?: string;
 }
 
 export interface ExternalPriceHistory {

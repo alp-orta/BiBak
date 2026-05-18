@@ -20,6 +20,7 @@ class ProductRequest:
     price: str = ""
     seller: str = ""
     reviews: list[str] = field(default_factory=list)
+    review_details: list[dict[str, Any]] = field(default_factory=list)
     rating: float = 0.0
     locale: str = "tr"
     platform: str = "unknown"
@@ -28,12 +29,21 @@ class ProductRequest:
     scrape_metadata: dict[str, Any] = field(default_factory=dict)
     parsed_price: dict[str, Any] = field(default_factory=dict)
     external_price_history: dict[str, Any] = field(default_factory=dict)
+    seller_metadata: dict[str, Any] = field(default_factory=dict)
+    pricing_signals: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ProductRequest":
         reviews = payload.get("reviews", [])
         if not isinstance(reviews, list):
             reviews = []
+
+        review_details = payload.get("review_details", [])
+        if not isinstance(review_details, list):
+            review_details = []
+        normalized_review_details = [
+            item for item in review_details if isinstance(item, dict)
+        ]
 
         try:
             rating = float(payload.get("rating") or 0.0)
@@ -56,6 +66,19 @@ class ProductRequest:
         if not isinstance(external_price_history, dict):
             external_price_history = {}
 
+        seller_metadata = payload.get("seller_metadata", {})
+        if not isinstance(seller_metadata, dict):
+            seller_metadata = {}
+
+        pricing_signals = payload.get("pricing_signals", [])
+        if isinstance(pricing_signals, dict):
+            pricing_signals = [pricing_signals]
+        if not isinstance(pricing_signals, list):
+            pricing_signals = []
+        normalized_pricing_signals = [
+            item for item in pricing_signals if isinstance(item, dict)
+        ]
+
         platform = _coerce_text(payload.get("platform")).lower() or "unknown"
         if platform not in ("trendyol", "hepsiburada", "amazon", "unknown"):
             platform = "unknown"
@@ -65,6 +88,7 @@ class ProductRequest:
             price=_coerce_text(payload.get("price")),
             seller=_coerce_text(payload.get("seller")),
             reviews=[review.strip() for review in reviews if isinstance(review, str) and review.strip()],
+            review_details=normalized_review_details,
             rating=rating,
             locale=locale,
             platform=platform,
@@ -73,6 +97,8 @@ class ProductRequest:
             scrape_metadata=scrape_metadata,
             parsed_price=parsed_price,
             external_price_history=external_price_history,
+            seller_metadata=seller_metadata,
+            pricing_signals=normalized_pricing_signals,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -81,6 +107,7 @@ class ProductRequest:
             "price": self.price,
             "seller": self.seller,
             "reviews": self.reviews,
+            "review_details": self.review_details,
             "rating": self.rating,
             "locale": self.locale,
             "platform": self.platform,
@@ -89,6 +116,8 @@ class ProductRequest:
             "scrape_metadata": self.scrape_metadata,
             "parsed_price": self.parsed_price,
             "external_price_history": self.external_price_history,
+            "seller_metadata": self.seller_metadata,
+            "pricing_signals": self.pricing_signals,
         }
 
 

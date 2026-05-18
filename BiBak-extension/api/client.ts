@@ -6,6 +6,12 @@ export interface ProductData {
   price: string
   seller: string
   reviews: string[]
+  review_details?: Array<{
+    id?: string | number
+    text: string
+    rating?: number
+    created_at?: string
+  }>
   rating: number
   locale?: string
   platform?: "trendyol" | "hepsiburada" | "amazon" | "unknown"
@@ -43,6 +49,17 @@ export interface ProductData {
     candidatesChecked?: number
     selectedReason?: string
     prices: Record<string, number>
+  }
+  seller_metadata?: {
+    marketplace_seller_score?: number
+    seller_age_days?: number
+    seller_follower_count?: number
+    seller_badges?: string[]
+    verified_badge_available?: boolean
+    fast_delivery_available?: boolean
+    free_shipping_available?: boolean
+    store_url?: string
+    seller_name?: string
   }
 }
 
@@ -99,12 +116,16 @@ export interface SellerAnalysis {
   seller: string | null
   history_count: number
   observed_products: number
-  average_rating?: number | null
   average_fraud_score?: number
   score: number
+  seller_core_score?: number
+  seller_context_adjustment?: number
   confidence: number
   warnings: string[]
   explanation?: string
+  explanations?: string[]
+  seller_flags?: string[]
+  feature_summary?: Record<string, unknown>
 }
 
 export interface PurchaseTiming {
