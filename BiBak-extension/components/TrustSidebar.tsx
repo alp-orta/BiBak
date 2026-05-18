@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle2, Info, SearchCheck } from "lucide-react"
 import { type Locale, type Translations, t, LOCALE_LABELS } from "~i18n/translations"
-import { analyzeProduct, type AnalysisData } from "~api/client"
+import { analyzeProduct, buildFallbackAnalysis, type AnalysisData } from "~api/client"
 import type { ScrapedProduct } from "~scrapers"
 import logoBlack from "data-base64:~assets/brand/logo/BiBak_logo_black.png"
 import logoColored from "data-base64:~assets/brand/logo/BiBak_logo_colored.png"
@@ -158,14 +158,14 @@ function getRecommendation(score: number, locale: Locale) {
     if (score >= 85) return "İyi görünüyor. Yine de fiyatı kontrol edin."
     if (score >= 70) return "Genel olarak iyi. Küçük uyarıları okuyun."
     if (score >= 50) return "Biraz dikkat gerekiyor. Yorumlara ve fiyata bakın."
-    if (score >= 30) return "Riskli görünüyor. Başka ürünlere de bakın."
+    if (score >= 30) return "Riskli görünüyor. Yorumları, fiyatı ve satıcıyı dikkatli kontrol edin."
     return "Bu ürün güven vermiyor. Almamak daha iyi olabilir."
   }
 
   if (score >= 85) return "Looks good. Still check the price."
   if (score >= 70) return "Mostly good. Read the small warnings."
   if (score >= 50) return "Be careful. Check reviews and price."
-  if (score >= 30) return "Looks risky. Check other products too."
+  if (score >= 30) return "Looks risky. Check reviews, price, and seller carefully."
   return "This does not look safe to buy."
 }
 
@@ -415,8 +415,9 @@ function ExplanationCard({ text }: { text: string }) {
   )
 }
 
-function parsePriceText(price: string): { value: number | null; currency: string | null; raw: string } {
-  const normalizedText = price.replace(/\u00a0/g, " ")
+function parsePriceText(price?: string): { value: number | null; currency: string | null; raw: string } {
+  const rawPrice = price || ""
+  const normalizedText = rawPrice.replace(/\u00a0/g, " ")
   const matches = Array.from(normalizedText.matchAll(/(?:([$€£₺])\s*(\d[\d.,]*)|(\d[\d.,]*)\s*(TL|TRY|USD|EUR|GBP|₺|[$€£]))/gi))
   const productPriceMatches = matches
     .map((item, index) => ({ item, index }))
@@ -429,7 +430,7 @@ function parsePriceText(price: string): { value: number | null; currency: string
     return normalizedText.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette")
   })
   const match = (basketPriceMatches[0] || productPriceMatches.at(-1))?.item
-  if (!match) return { value: null, currency: null, raw: price }
+  if (!match) return { value: null, currency: null, raw: rawPrice }
 
   const number = match[2] || match[3]
   const normalized = number.includes(",")
@@ -444,7 +445,7 @@ function parsePriceText(price: string): { value: number | null; currency: string
   return {
     value: Number.isFinite(value) ? value : null,
     currency: Number.isFinite(value) ? currencyMap[marker] || "TRY" : null,
-    raw: price
+    raw: rawPrice
   }
 }
 
@@ -583,9 +584,10 @@ function PriceTimingPanel({ data, locale }: { data: AnalysisData; locale: Locale
 function ReviewEvidencePanel({ data, locale, strings }: { data: AnalysisData; locale: Locale; strings: Translations }) {
   const reviewAnalysis = data.review_analysis
   if (!reviewAnalysis) return null
-  if (reviewAnalysis.review_scores.length === 0 || data.warnings?.includes("no_reviews")) return null
+  const reviewScores = Array.isArray(reviewAnalysis.review_scores) ? reviewAnalysis.review_scores : []
+  if (reviewScores.length === 0 || data.warnings?.includes("no_reviews")) return null
 
-  const highRiskReviews = reviewAnalysis.review_scores.filter((review) => review.fraud_score >= 60)
+  const highRiskReviews = reviewScores.filter((review) => review.fraud_score >= 60)
   const sampleReviews = highRiskReviews
     .filter((review) => review.text_snippet)
     .slice(0, 2)
@@ -785,7 +787,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
 
       setLoading(true)
       try {
-        const res = await analyzeProduct({
+        const productPayload = {
           title: scrapedData.title,
           price: scrapedData.price,
           seller: scrapedData.seller,
@@ -800,10 +802,26 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
           parsed_price: parsePriceText(scrapedData.price),
           external_price_history: scrapedData.priceHistory,
           seller_metadata: scrapedData.sellerMetadata
-        })
+        }
+        const res = await analyzeProduct(productPayload)
         setData(res)
       } catch (err) {
         console.error(err)
+        setData(buildFallbackAnalysis({
+          title: scrapedData.title || "",
+          price: scrapedData.price || "",
+          seller: scrapedData.seller || "",
+          reviews: scrapedData.reviews || [],
+          rating: scrapedData.rating || 0,
+          locale,
+          platform: scrapedData.platform,
+          product_id: scrapedData.metadata?.productId,
+          url: window.location.href,
+          scrape_metadata: scrapedData.metadata,
+          parsed_price: parsePriceText(scrapedData.price),
+          external_price_history: scrapedData.priceHistory,
+          seller_metadata: scrapedData.sellerMetadata
+        }, locale))
       } finally {
         setLoading(false)
       }
@@ -1001,24 +1019,24 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       <StatusNotice source={data.source} warnings={data.warnings} strings={strings} />
 
       {/* Risk Flags */}
-      {data.risk_flags.length > 0 && (
+      {(data.risk_flags || []).length > 0 && (
         <div style={{ padding: "0 16px 12px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
             {strings.riskAlerts}
           </div>
-          {data.risk_flags.map((flag, i) => <RiskFlag key={i} text={flag} />)}
+          {(data.risk_flags || []).map((flag, i) => <RiskFlag key={i} text={flag} />)}
         </div>
       )}
 
       <PriceTimingPanel data={data} locale={locale} />
 
       {/* Explanations */}
-      {data.explanations.length > 0 && (
+      {(data.explanations || []).length > 0 && (
         <div style={{ padding: "0 16px 12px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>
             {strings.analysis}
           </div>
-          {data.explanations.map((exp, i) => <ExplanationCard key={i} text={exp} />)}
+          {(data.explanations || []).map((exp, i) => <ExplanationCard key={i} text={exp} />)}
         </div>
       )}
 

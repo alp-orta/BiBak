@@ -6,7 +6,6 @@
 - [x] Add scraper diagnostics for development: scraped price text, parsed price, matched selector, selected listing ID, content ID, history source, and history count.
 - [x] Improve Trendyol listing/history matching so the chosen price history is ranked against the active seller/current listing instead of using the first non-empty history.
 - [x] Show a clear UI warning when live price and Trendyol history disagree, especially when history may belong to a different listing or seller.
-- [x] Tighten safer alternatives so they only appear for genuinely comparable products with strong title/category similarity and sane price data.
 
 ## P0: Data Backend and History Coverage
 
@@ -24,14 +23,6 @@
 - [ ] Add offline evaluation reports for precision, recall, calibration, and false-positive cases.
 - [ ] Add regression tests that lock expected score bands for representative clean, mixed, suspicious, and low-data products.
 
-## P1: Safer Alternatives
-
-- [ ] Add live or indexed alternative discovery instead of relying only on previously visited local snapshots.
-- [ ] Normalize category, brand, model, variant, pack size, and unit price before comparing alternatives.
-- [ ] Support cross-platform alternatives when product identity and price data are comparable.
-- [ ] Include stock, shipping, return policy, seller quality, and total landed price in alternative ranking.
-- [ ] Expand the UI to explain why each alternative is safer and what tradeoffs it has.
-
 ## P1: Review Evidence UI
 
 - [ ] Show suspicious review clusters with sample texts and similarity reasons.
@@ -42,7 +33,7 @@
 
 ## P1: User Feedback and Corrections
 
-- [ ] Add feedback actions for useful analysis, wrong analysis, wrong price, wrong seller, wrong reviews, and bad alternative.
+- [ ] Add feedback actions for useful analysis, wrong analysis, wrong price, wrong seller, and wrong reviews.
 - [ ] Store feedback with enough context to reproduce the analysis result.
 - [ ] Add a lightweight admin/export path for reviewing feedback and creating labeled examples.
 - [ ] Add user-visible retry or refresh controls for stale or failed analysis.

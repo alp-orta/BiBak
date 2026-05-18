@@ -70,7 +70,6 @@ export interface AnalysisData {
   seller_reliability_score: number
   risk_flags: string[]
   explanations: string[]
-  safer_alternatives: SaferAlternative[]
   review_analysis?: ReviewAnalysis | null
   price_analysis?: PriceAnalysis | null
   seller_analysis?: SellerAnalysis | null
@@ -134,16 +133,6 @@ export interface PurchaseTiming {
   reason: string
 }
 
-export interface SaferAlternative {
-  title?: string
-  seller?: string
-  url?: string
-  price?: number
-  currency?: string
-  trust_score?: number
-  reason?: string
-}
-
 const FALLBACK_TEXT = {
   tr: {
     backendUnavailable: "Sunucuya ulaşılamadı. Basit kontrol yapıldı.",
@@ -173,9 +162,9 @@ function normalizeReview(text: string) {
     .trim()
 }
 
-function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): AnalysisData {
+export function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): AnalysisData {
   const strings = FALLBACK_TEXT[locale]
-  const normalizedReviews = data.reviews.map(normalizeReview).filter(Boolean)
+  const normalizedReviews = (data.reviews || []).map(normalizeReview).filter(Boolean)
   const uniqueReviews = new Set(normalizedReviews)
   const reviewCount = normalizedReviews.length
   const duplicateRatio = reviewCount > 0 ? 1 - uniqueReviews.size / reviewCount : 0
@@ -228,7 +217,6 @@ function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): Analysis
     seller_reliability_score: clamp(sellerReliability),
     risk_flags: riskFlags,
     explanations,
-    safer_alternatives: [],
     source: "fallback",
     warnings: reviewCount === 0 ? ["backend_unavailable", "no_reviews"] : ["backend_unavailable", "limited_review_data"]
   }
@@ -237,6 +225,31 @@ function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): Analysis
 export const analyzeProduct = async (data: ProductData): Promise<AnalysisData> => {
   const locale = (data.locale || detectLocale()) as "tr" | "en"
   const payload = { ...data, locale }
+  const normalizeResult = (result: unknown): AnalysisData => {
+    if (!result || typeof result !== "object") {
+      return buildFallbackAnalysis(data, locale)
+    }
+
+    const analysis = result as Partial<AnalysisData>
+    if (typeof analysis.trust_score !== "number") {
+      return buildFallbackAnalysis(data, locale)
+    }
+
+    return {
+      trust_score: analysis.trust_score,
+      review_authenticity_score: analysis.review_authenticity_score ?? 0,
+      price_integrity_score: analysis.price_integrity_score ?? 0,
+      seller_reliability_score: analysis.seller_reliability_score ?? 0,
+      risk_flags: Array.isArray(analysis.risk_flags) ? analysis.risk_flags : [],
+      explanations: Array.isArray(analysis.explanations) ? analysis.explanations : [],
+      review_analysis: analysis.review_analysis ?? null,
+      price_analysis: analysis.price_analysis ?? null,
+      seller_analysis: analysis.seller_analysis ?? null,
+      purchase_timing: analysis.purchase_timing ?? null,
+      source: analysis.source,
+      warnings: Array.isArray(analysis.warnings) ? analysis.warnings : []
+    }
+  }
 
   try {
     if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
@@ -246,7 +259,7 @@ export const analyzeProduct = async (data: ProductData): Promise<AnalysisData> =
       })
 
       if (result?.ok) {
-        return result.data
+        return normalizeResult(result.data)
       }
 
       throw new Error(result?.error || "Background analysis failed")
@@ -259,7 +272,7 @@ export const analyzeProduct = async (data: ProductData): Promise<AnalysisData> =
     })
 
     if (!response.ok) throw new Error("Network response was not ok")
-    return await response.json()
+    return normalizeResult(await response.json())
   } catch (error) {
     console.error("Failed to connect to backend", error)
     return buildFallbackAnalysis(data, locale)

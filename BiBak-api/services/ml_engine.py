@@ -4,7 +4,6 @@ from services import history_store
 from services.trust_signals import (
     build_price_analysis,
     build_purchase_timing,
-    build_safer_alternatives,
     build_seller_analysis,
     resolve_current_price,
 )
@@ -454,7 +453,6 @@ def _fallback_analysis(product: dict, locale: str, error_message: str) -> dict:
         "seller_reliability_score": seller_score,
         "risk_flags": risk_flags,
         "explanations": explanations,
-        "safer_alternatives": [],
         "review_analysis": None,
         "price_analysis": price_analysis,
         "seller_analysis": seller_analysis,
@@ -491,7 +489,6 @@ def analyze_product_data(product: dict) -> dict:
             else "There are very few reviews, so the result is not final."
         )
         price_info = resolve_current_price(product)
-        alternatives = build_safer_alternatives(product, trust_score, price_score)
         history_store.record_snapshot(product, price_info, fraud, trust_score)
 
         return {
@@ -501,7 +498,6 @@ def analyze_product_data(product: dict) -> dict:
             "seller_reliability_score": seller_score,
             "risk_flags": risk_flags,
             "explanations": explanations,
-            "safer_alternatives": alternatives,
             "review_analysis": None,
             "price_analysis": price_analysis,
             "seller_analysis": seller_analysis,
@@ -538,7 +534,6 @@ def analyze_product_data(product: dict) -> dict:
     explanations.extend(_contextual_explanations(price_analysis, seller_analysis, purchase_timing))
     explanations = explanations[:7]
 
-    safer_alternatives = build_safer_alternatives(product, trust_score, price_score)
     price_info = resolve_current_price(product)
     history_store.record_snapshot(product, price_info, fraud, trust_score)
 
@@ -549,7 +544,6 @@ def analyze_product_data(product: dict) -> dict:
         "seller_reliability_score": seller_score,
         "risk_flags": risk_flags,
         "explanations": explanations,
-        "safer_alternatives": safer_alternatives,
         "review_analysis": {
             "fraud_score": fraud,
             "suspicious_clusters": analysis["suspicious_clusters"],

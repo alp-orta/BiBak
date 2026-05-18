@@ -193,7 +193,6 @@ Icerik sirasi:
 5. Review Authenticity
 6. Price Integrity
 7. Seller Reliability
-8. Safer Alternatives
 
 Ornek:
 
@@ -376,11 +375,10 @@ Person 2 icin en uygun gorevler:
 7. Pitch deck akisini olusturmak
 8. Juri Q&A dokumani hazirlamak
 9. Backup screenshot toplamak
-10. Safer alternatives mock icerikleri yazmak
-11. Tuketici psikolojisi kismini sunuma eklemek
-12. Urun konumlandirmasini netlestirmek
-13. Basit React/Tailwind kart bilesenleri yapmak
-14. Demo script yazmak
+10. Tuketici psikolojisi kismini sunuma eklemek
+11. Urun konumlandirmasini netlestirmek
+12. Basit React/Tailwind kart bilesenleri yapmak
+13. Demo script yazmak
 
 ## 9. Zaman Kaybetmemesi Gereken Seyler
 
@@ -416,10 +414,9 @@ En onemli isler:
 4. Extension popup akisini tasarlamak
 5. Pitch hikayesini hazirlamak
 6. Fraud pattern arastirmasi yapmak
-7. Safer alternatives icerigini hazirlamak
-8. UI microcopy yazmak
-9. Juri sorularina cevap hazirlamak
-10. Backup demo gorsellerini hazirlamak
+7. UI microcopy yazmak
+8. Juri sorularina cevap hazirlamak
+9. Backup demo gorsellerini hazirlamak
 
 En kritik dusunce:
 

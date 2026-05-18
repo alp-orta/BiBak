@@ -183,18 +183,3 @@ def record_snapshot(
                 ),
             )
 
-
-def find_alternative_snapshots(platform: str, product_key: str) -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT product_key, platform, product_id, url, title, seller, price_value,
-                   currency, rating, review_count, fraud_score, trust_score, created_at
-            FROM product_snapshots
-            WHERE platform = ? AND product_key != ? AND price_value IS NOT NULL
-            ORDER BY trust_score DESC, review_count DESC, created_at DESC
-            LIMIT 80
-            """,
-            (platform or "unknown", product_key),
-        ).fetchall()
-    return [dict(row) for row in rows]

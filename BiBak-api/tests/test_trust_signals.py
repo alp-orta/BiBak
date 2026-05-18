@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from services.history_store import get_product_snapshots, make_product_key, record_snapshot
 from services.ml_engine import analyze_product_data
-from services.trust_signals import build_safer_alternatives, parse_price_text, resolve_current_price
+from services.trust_signals import parse_price_text, resolve_current_price
 
 
 class TrustSignalsTest(unittest.TestCase):
@@ -226,28 +226,6 @@ class TrustSignalsTest(unittest.TestCase):
         self.assertFalse(
             any("Seller has" in explanation for explanation in result["seller_analysis"]["explanations"])
         )
-
-    def test_safer_alternatives_require_similarity_reviews_and_sane_price(self) -> None:
-        current = self._product("100 TL", title="BiBak Test Blender 600W Glass Cup")
-        similar = self._product("95 TL", title="BiBak Test Blender 600W Steel Cup")
-        unrelated = self._product("20 TL", title="Running Shoes Outdoor")
-        thin_reviews = self._product("90 TL", title="BiBak Test Blender 600W Compact")
-        current["product_id"] = "current"
-        similar["product_id"] = "similar"
-        unrelated["product_id"] = "unrelated"
-        thin_reviews["product_id"] = "thin"
-        thin_reviews["reviews"] = ["Short review"]
-
-        record_snapshot(similar, {"value": 95, "currency": "TRY"}, fraud_score=12, trust_score=88)
-        record_snapshot(unrelated, {"value": 20, "currency": "TRY"}, fraud_score=5, trust_score=95)
-        record_snapshot(thin_reviews, {"value": 90, "currency": "TRY"}, fraud_score=5, trust_score=96)
-
-        alternatives = build_safer_alternatives(current, trust_score=72, price_score=55)
-
-        self.assertEqual(len(alternatives), 1)
-        self.assertEqual(alternatives[0]["title"], similar["title"])
-        self.assertGreaterEqual(alternatives[0]["similarity"], 0.42)
-
 
 if __name__ == "__main__":
     unittest.main()

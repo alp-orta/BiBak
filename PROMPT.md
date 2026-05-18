@@ -9,7 +9,7 @@ BiBak is an AI-powered Chrome browser extension that analyzes e-commerce product
 - **Abnormal seller trust patterns**.
 - **Risky purchase timing**.
 
-It produces a **Trust Score (0–100)**, explains the reasoning, and recommends safer alternatives.
+It produces a **Trust Score (0–100)** and explains the reasoning.
 
 ## Technical Architecture (MVP)
 
@@ -36,7 +36,7 @@ It produces a **Trust Score (0–100)**, explains the reasoning, and recommends 
 ### Current AI / ML Reality
 - Review analysis currently uses `sentence-transformers` embeddings, DBSCAN clustering, lexical/statistical features, and anomaly scoring.
 - Final Trust Score is still heuristic weighted scoring in `ml_engine.py`; `xgboost` is installed but no trained final scoring model, labeled dataset, calibration pipeline, or evaluation benchmark exists yet.
-- Price history, seller history, and safer alternatives currently depend on local SQLite snapshots plus any scraper-provided external price history.
+- Price history and seller history currently depend on local SQLite snapshots plus any scraper-provided external price history.
 
 ## Development Principles
 1. **MVP First**: Prioritize demo polish and working architecture over complex model training initially.
@@ -54,14 +54,13 @@ It produces a **Trust Score (0–100)**, explains the reasoning, and recommends 
 - Trendyol scraping is the strongest current path, including price parsing diagnostics and internal price history support.
 - Amazon and Hepsiburada support exist but need substantially better scraper reliability and data coverage.
 - Flask backend exposes `POST /analyze-product`, validates the API contract, and returns locale-aware trust analysis.
-- Backend produces review authenticity, price integrity, seller reliability, purchase timing, safer alternatives, warnings, and explanations.
-- Local SQLite records product and seller snapshots for price history, seller history, and alternative-product suggestions.
+- Backend produces review authenticity, price integrity, seller reliability, purchase timing, warnings, and explanations.
+- Local SQLite records product and seller snapshots for price history and seller history.
 - Extension has a local fallback analysis path when the backend is unavailable.
 - Backend unit tests and extension TypeScript checks are part of the current verification flow.
 
 ## Known Product Gaps
-- Production/shared data backend is missing; local SQLite cannot provide strong first-visit price history, seller reputation, or alternatives.
+- Production/shared data backend is missing; local SQLite cannot provide strong first-visit price history or seller reputation.
 - Trust scoring is not trained or calibrated against labeled outcomes.
-- Safer alternatives are limited to locally observed products and simple title-token similarity.
 - Review-analysis evidence is not deeply exposed in the UI; suspicious clusters and per-review flags are mostly backend-only.
 - User feedback, correction, reporting, privacy controls, deployment/onboarding, and operational monitoring are not yet productized.

@@ -12,7 +12,7 @@ Onerilen ekran sirasi:
    - Kullanici puani tek basina degil, hemen altindaki oneriyle okumali.
 
 2. **Kisa Oneri**
-   - Ornek: "Riskli gorunuyor; satin almadan once alternatifleri inceleyin."
+   - Ornek: "Riskli gorunuyor; satin almadan once yorumlari ve fiyat gecmisini inceleyin."
    - Bu alan teknik skorun kullanici aksiyonuna cevrildigi yerdir.
 
 3. **Alt Puanlar**
@@ -38,10 +38,6 @@ Onerilen ekran sirasi:
 7. **Risk Uyarilari**
    - En onemli riskler kisa kartlar halinde.
    - Her risk "ne oldu?" ve "neden onemli?" dilinde yazilmali.
-
-8. **Daha Guvenli Alternatifler**
-   - Sadece yeterince benzer urunler gosterilmeli.
-   - Her alternatifte neden daha guvenli oldugu belirtilmeli.
 
 ## Toplam Puan Formulu
 
@@ -72,7 +68,7 @@ Bu sayede toplam puan yalnizca "ortalama" degil, kanitin kalitesini de dikkate a
 | 85-100 | Cok Guvenilir | Guven sinyalleri guclu. |
 | 70-84 | Guvenilir | Genel olarak iyi, kucuk uyarilari oku. |
 | 50-69 | Karisik Sinyaller | Satin almadan once yorum ve fiyat gecmisini karsilastir. |
-| 30-49 | Riskli | Alternatiflere bakmadan karar verme. |
+| 30-49 | Riskli | Satin almadan once yorumlari, fiyat gecmisini ve saticiyi dikkatli incele. |
 | 0-29 | Uzak Dur | Guclu manipulasyon veya belirsizlik sinyalleri var. |
 
 ## Fake Yorum Kullaniciya Nasil Gosterilmeli?

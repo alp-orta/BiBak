@@ -129,7 +129,6 @@ class AnalysisResponse:
     seller_reliability_score: int
     risk_flags: list[str]
     explanations: list[str]
-    safer_alternatives: list[Any]
     review_analysis: dict[str, Any] | None = None
     price_analysis: dict[str, Any] | None = None
     seller_analysis: dict[str, Any] | None = None
@@ -146,7 +145,6 @@ class AnalysisResponse:
             "seller_reliability_score",
             "risk_flags",
             "explanations",
-            "safer_alternatives",
         )
         missing = [key for key in required if key not in payload]
         if missing:
@@ -159,9 +157,6 @@ class AnalysisResponse:
             seller_reliability_score=_coerce_score(payload.get("seller_reliability_score")),
             risk_flags=[str(flag) for flag in payload.get("risk_flags", []) if isinstance(flag, str)],
             explanations=[str(item) for item in payload.get("explanations", []) if isinstance(item, str)],
-            safer_alternatives=payload.get("safer_alternatives", [])
-            if isinstance(payload.get("safer_alternatives"), list)
-            else [],
             review_analysis=payload.get("review_analysis")
             if isinstance(payload.get("review_analysis"), dict)
             else None,
@@ -188,7 +183,6 @@ class AnalysisResponse:
             "seller_reliability_score": self.seller_reliability_score,
             "risk_flags": self.risk_flags,
             "explanations": self.explanations,
-            "safer_alternatives": self.safer_alternatives,
             "review_analysis": self.review_analysis,
             "price_analysis": self.price_analysis,
             "seller_analysis": self.seller_analysis,
