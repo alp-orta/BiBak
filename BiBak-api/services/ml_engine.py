@@ -341,7 +341,7 @@ def _build_review_explanations(
     if locale == "tr":
         if fraud >= 55 or summary["clustered_ratio"] >= 0.35:
             explanations.append(
-                f"Yorumların yaklaşık %{round(summary['clustered_ratio'] * 100)} kadarı birbirine çok benziyor. Bu yüzden yorum puanı düştü."
+                f"Yorumların yaklaşık %{round(summary['clustered_ratio'] * 100)} kadarı birbirine çok benziyor. Bu yüzden yorum puanı düşük."
             )
         elif rating >= 4.0 and fraud <= 25:
             explanations.append(
