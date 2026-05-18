@@ -656,32 +656,6 @@ function LowReviewNotice({ data, scrapedData, locale }: { data: AnalysisData; sc
   )
 }
 
-function AlternativesPanel({ data, locale }: { data: AnalysisData; locale: Locale }) {
-  if (!data.safer_alternatives.length) return null
-
-  return (
-    <InsightPanel title={locale === "tr" ? "Alternatifler" : "Alternatives"}>
-      {data.safer_alternatives.slice(0, 3).map((item, index) => (
-        <a
-          key={`${item.url || item.title || index}`}
-          href={item.url}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "block", color: COLORS.text, textDecoration: "none",
-            fontSize: 11, lineHeight: 1.35, marginTop: index ? 9 : 0
-          }}
-        >
-          <strong>{item.title || (locale === "tr" ? "Alternatif ürün" : "Alternative product")}</strong>
-          <span style={{ display: "block", color: COLORS.textDim, marginTop: 2 }}>
-            {item.seller || "N/A"} · {formatMoney(item.price, item.currency)} · {item.trust_score || 0}/100
-          </span>
-        </a>
-      ))}
-    </InsightPanel>
-  )
-}
-
 function StatusNotice({ source, warnings, strings }: { source?: string; warnings?: string[]; strings: Translations }) {
   const statusWarnings = (warnings || []).filter((warning) => !REVIEW_DATA_WARNING_CODES.includes(warning))
   if (source !== "fallback" && statusWarnings.length === 0) return null
@@ -1037,7 +1011,6 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       )}
 
       <PriceTimingPanel data={data} locale={locale} />
-      <AlternativesPanel data={data} locale={locale} />
 
       {/* Explanations */}
       {data.explanations.length > 0 && (
