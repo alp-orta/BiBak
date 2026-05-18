@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BiBak | Ürün Güven Analizi</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --blue-light: #9cb2f2;
+    --blue-mid: #576cea;
+    --blue-dark: #1f2787;
+    --blue-deep: #17216b;
+    --white: #ffffff;
+    --off-white: #f4f5fb;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--blue-deep);
+    color: var(--white);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .video-stage {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: var(--blue-deep);
+  }
+
+  .scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+  .scene.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* ===== SCENE 1: Problem ===== */
+  #s1 {
+    background: linear-gradient(135deg, #f0f3ff 0%, #dde4fb 50%, #c8d4f8 100%);
+  }
+  #s1 .big-text {
+    font-size: 48px; font-weight: 800; color: var(--blue-deep);
+    text-align: left; line-height: 1.2;
+    position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
+    max-width: 420px;
+  }
+  #s1 .big-text span { color: var(--blue-mid); }
+  #s1 .icons-area {
+    position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
+    width: 340px; height: 320px;
+  }
+  .shop-icon {
+    position: absolute;
+    width: 68px; height: 68px;
+    background: white;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 4px 20px rgba(31,39,135,0.15);
+    animation: floatIcon 3s ease-in-out infinite;
+  }
+  .risk-badge {
+    position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    background: #e53e3e; color: white; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    top: -7px; right: -7px;
+  }
+  @keyframes floatIcon {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-9px); }
+  }
+
+  /* ===== SCENE 2: Question ===== */
+  #s2 { background: linear-gradient(150deg, var(--blue-deep) 0%, var(--blue-dark) 100%); }
+  #s2 .q-bg {
+    font-size: 220px; font-weight: 800;
+    color: rgba(255,255,255,0.04);
+    position: absolute; right: 30px; top: 50%; transform: translateY(-50%);
+    line-height: 1;
+  }
+  #s2 .question-text {
+    font-size: 36px; font-weight: 800; color: white;
+    text-align: center; line-height: 1.35; position: relative; z-index: 2;
+  }
+  #s2 .question-text em { color: var(--blue-light); font-style: normal; }
+  #s2 .sub {
+    font-size: 18px; color: rgba(255,255,255,0.55);
+    margin-top: 18px; font-weight: 400; text-align: center;
+    position: relative; z-index: 2;
+  }
+
+  /* ===== SCENE 3: BiBak intro ===== */
+  #s3 { background: var(--blue-deep); }
+  .glow-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(87,108,234,0.25);
+    animation: ringPulse 3s ease-in-out infinite;
+  }
+  @keyframes ringPulse {
+    0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 0.4; }
+    50% { transform: translate(-50%,-50%) scale(1.06); opacity: 0.7; }
+  }
+  #s3 .logo-area { text-align: center; position: relative; z-index: 2; }
+  #s3 .logo-img { width: 260px; margin: 0 auto 20px; display: block; }
+  #s3 .logo-tagline {
+    font-size: 22px; color: rgba(255,255,255,0.6); font-weight: 400;
+  }
+
+  /* ===== SCENE 4: Extension UI ===== */
+  #s4 { background: linear-gradient(135deg, #f4f5fb 0%, #e8ecfa 100%); }
+  .product-page {
+    position: absolute; left: 48px; top: 48px;
+    width: 476px; height: 444px;
+    background: white; border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(31,39,135,0.14);
+    padding: 22px; overflow: hidden;
+  }
+  .page-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 18px;
+  }
+  .page-dot { width: 11px; height: 11px; border-radius: 50%; }
+  .url-bar {
+    flex: 1; height: 26px; background: #f1f3f9;
+    border-radius: 6px; padding: 0 12px;
+    display: flex; align-items: center; font-size: 10px; color: #999;
+  }
+  .product-img {
+    width: 100%; height: 130px; background: linear-gradient(135deg, #f0f0f0, #e4e4e4);
+    border-radius: 10px; margin-bottom: 13px;
+    display: flex; align-items: center; justify-content: center; font-size: 46px;
+  }
+  .product-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 5px; }
+  .product-rating { display: flex; align-items: center; margin-bottom: 6px; }
+  .stars { color: #f59e0b; font-size: 13px; }
+  .review-count { font-size: 11px; color: #888; margin-left: 5px; }
+  .product-price { font-size: 20px; font-weight: 800; color: #1a1a1a; }
+  .old-price { font-size: 13px; color: #aaa; text-decoration: line-through; margin-left: 6px; }
+  .discount-badge {
+    display: inline-block; background: #fee2e2; color: #dc2626;
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-left: 6px;
+  }
+  .review-snippets { margin-top: 12px; }
+  .review-item {
+    background: #f8f9fc; border-radius: 7px; padding: 7px 10px;
+    font-size: 10px; color: #666; margin-bottom: 5px;
+    border-left: 2px solid var(--blue-light);
+  }
+
+  .bibak-panel {
+    position: absolute; right: 44px; top: 48px;
+    width: 238px;
+    background: var(--blue-deep);
+    border-radius: 16px;
+    box-shadow: 0 8px 36px rgba(23,33,107,0.35), 0 0 0 1px rgba(255,255,255,0.07);
+    padding: 18px; color: white;
+    transform: translateX(24px) scale(0.96);
+    opacity: 0;
+    transition: all 0.7s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .bibak-panel.slide-in { transform: translateX(0) scale(1); opacity: 1; }
+  .panel-logo-img { height: 22px; margin-bottom: 14px; display: block; }
+  .score-ring {
+    width: 82px; height: 82px;
+    background: conic-gradient(#e53e3e 0% 42%, rgba(255,255,255,0.06) 42% 100%);
+    border-radius: 50%; margin: 0 auto 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .score-inner {
+    width: 62px; height: 62px; border-radius: 50%;
+    background: var(--blue-deep);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .score-num { font-size: 22px; font-weight: 800; color: #e53e3e; }
+  .score-max { font-size: 8px; color: rgba(255,255,255,0.35); }
+  .score-label {
+    text-align: center; font-size: 11px; font-weight: 700;
+    color: #e53e3e; margin-bottom: 12px;
+  }
+  .sub-scores { display: flex; flex-direction: column; gap: 7px; }
+  .sub-score-item {
+    display: flex; align-items: center; justify-content: space-between; font-size: 9.5px;
+  }
+  .sub-score-name { color: rgba(255,255,255,0.5); min-width: 48px; }
+  .sub-score-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin: 0 7px; }
+  .sub-score-fill { height: 100%; border-radius: 2px; }
+  .sub-score-val { font-weight: 700; min-width: 22px; text-align: right; }
+  .panel-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 10px 0; }
+  .risk-card {
+    background: rgba(87,108,234,0.18); border-radius: 8px; padding: 9px 10px;
+    font-size: 9.5px; color: var(--blue-light);
+    border-left: 2px solid var(--blue-mid);
+  }
+  .risk-card-title { font-weight: 700; margin-bottom: 3px; font-size: 10px; }
+
+  /* ===== SCENE 5: Three pillars ===== */
+  #s5 { background: var(--blue-deep); }
+  .pillars-title {
+    font-size: 30px; font-weight: 800; color: white;
+    text-align: center; margin-bottom: 36px;
+  }
+  .pillars-grid { display: flex; gap: 18px; }
+  .pillar-card {
+    width: 210px; background: rgba(255,255,255,0.05);
+    border-radius: 16px; padding: 26px 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    text-align: center;
+    transform: translateY(24px); opacity: 0;
+    transition: all 0.55s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .pillar-card.pop-in { transform: translateY(0); opacity: 1; }
+  .pillar-icon { font-size: 38px; margin-bottom: 14px; }
+  .pillar-name { font-size: 15px; font-weight: 700; color: white; margin-bottom: 8px; }
+  .pillar-desc { font-size: 11.5px; color: rgba(255,255,255,0.5); line-height: 1.6; }
+  .pillar-pct {
+    display: inline-block; margin-top: 14px;
+    background: rgba(87,108,234,0.25); color: var(--blue-light);
+    font-size: 13px; font-weight: 700; padding: 4px 14px; border-radius: 20px;
+  }
+
+  /* ===== SCENE 6: Score bands ===== */
+  #s6 { background: linear-gradient(150deg, #f4f5fb 0%, #e8ecfa 100%); }
+  .bands-title {
+    font-size: 30px; font-weight: 800; color: var(--blue-deep);
+    margin-bottom: 26px; text-align: center;
+  }
+  .bands-list { display: flex; flex-direction: column; gap: 9px; width: 560px; }
+  .band-row {
+    display: flex; align-items: center; gap: 14px;
+    background: white; border-radius: 12px; padding: 11px 16px;
+    box-shadow: 0 2px 10px rgba(31,39,135,0.08);
+    transform: translateX(-28px); opacity: 0;
+    transition: all 0.4s ease;
+  }
+  .band-row.slide-in { transform: translateX(0); opacity: 1; }
+  .band-score {
+    width: 62px; height: 30px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .band-label { font-size: 14px; font-weight: 700; flex: 1; }
+  .band-msg { font-size: 11.5px; color: #888; }
+
+  /* ===== SCENE 7: Evidence cards ===== */
+  #s7 { background: var(--blue-deep); }
+  .evidence-title {
+    font-size: 28px; font-weight: 800; color: white;
+    text-align: center; margin-bottom: 28px;
+  }
+  .evidence-grid { display: flex; gap: 14px; }
+  .ev-card {
+    background: rgba(255,255,255,0.05); border-radius: 14px; padding: 20px;
+    width: 218px; border: 1px solid rgba(255,255,255,0.08);
+    transform: scale(0.88); opacity: 0;
+    transition: all 0.45s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .ev-card.pop-in { transform: scale(1); opacity: 1; }
+  .ev-card-icon { font-size: 26px; margin-bottom: 10px; }
+  .ev-card-type { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; margin-bottom: 6px; text-transform: uppercase; }
+  .ev-card-title { font-size: 13px; font-weight: 700; color: white; margin-bottom: 6px; }
+  .ev-card-desc { font-size: 10.5px; color: rgba(255,255,255,0.5); line-height: 1.55; margin-bottom: 10px; }
+  .ev-card-action {
+    font-size: 9.5px; font-weight: 600; padding: 6px 0 0;
+    border-top: 1px solid rgba(255,255,255,0.07); color: var(--blue-light);
+  }
+
+  /* ===== SCENE 8: Honest states ===== */
+  #s8 { background: linear-gradient(150deg, #f4f5fb 0%, #e8ecfa 100%); }
+  .honest-title {
+    font-size: 28px; font-weight: 800; color: var(--blue-deep);
+    text-align: center; margin-bottom: 8px;
+  }
+  .honest-sub { font-size: 15px; color: #666; text-align: center; margin-bottom: 30px; }
+  .state-cards { display: flex; gap: 18px; }
+  .state-card {
+    width: 198px; background: white;
+    border-radius: 14px; padding: 20px;
+    box-shadow: 0 4px 18px rgba(31,39,135,0.1);
+    text-align: center;
+    transform: translateY(18px); opacity: 0;
+    transition: all 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    border-top: 3px solid transparent;
+  }
+  .state-card.pop-in { transform: translateY(0); opacity: 1; }
+  .state-card-icon { font-size: 34px; margin-bottom: 10px; }
+  .state-card-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+  .state-card-msg { font-size: 10.5px; color: #888; line-height: 1.5; }
+  .state-badge {
+    display: inline-block; margin-top: 10px;
+    font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+  }
+
+  /* ===== SCENE 9: Closing ===== */
+  #s9 { background: var(--blue-deep); overflow: hidden; }
+  .particle {
+    position: absolute; border-radius: 50%;
+    animation: particleDrift 4s ease-in-out infinite;
+  }
+  @keyframes particleDrift {
+    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
+    50% { transform: translateY(-22px) translateX(12px); opacity: 0.6; }
+  }
+  #s9 .close-logo-img {
+    width: 300px;
+    display: block; margin: 0 auto 22px;
+  }
+  #s9 .close-tagline {
+    font-size: 22px; color: rgba(255,255,255,0.6); text-align: center; font-weight: 400;
+  }
+  #s9 .close-tagline strong { color: white; font-weight: 700; }
+  #s9 .close-sub {
+    font-size: 16px; color: rgba(255,255,255,0.35); text-align: center;
+    margin-top: 14px;
+  }
+
+  /* ===== Shared animations ===== */
+  .fade-up {
+    opacity: 0; transform: translateY(22px);
+    transition: all 0.65s ease;
+  }
+  .fade-up.in { opacity: 1; transform: translateY(0); }
+
+  /* ===== Controls ===== */
+  .progress-bar {
+    position: fixed; bottom: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--blue-light), var(--blue-mid));
+    transition: width 0.25s linear; z-index: 100;
+  }
+  .nav-dots {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 7px; z-index: 100;
+  }
+  .nav-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,0.3); cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .nav-dot.active { background: white; width: 22px; border-radius: 4px; }
+  .controls {
+    position: fixed; top: 14px; right: 18px;
+    display: flex; gap: 8px; z-index: 100;
+  }
+  .ctrl-btn {
+    background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2); color: white;
+    padding: 6px 14px; border-radius: 20px; font-size: 12px;
+    cursor: pointer; font-family: inherit; font-weight: 600;
+    transition: background 0.2s;
+  }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.2); }
+
+  .progress-bar,
+  .nav-dots,
+  .controls {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="video-stage">
+
+<!-- S1: Problem -->
+<div class="scene active" id="s1">
+  <div class="big-text fade-up" id="s1-text">
+    Online alışverişte<br>güvenmek<br><span>her zaman kolay değil.</span>
+  </div>
+  <div class="icons-area">
+    <svg style="position:absolute;width:100%;height:100%;top:0;left:0" viewBox="0 0 340 320" fill="none">
+      <path d="M50 80 Q180 30 280 150 Q330 210 190 300" stroke="#9cb2f2" stroke-width="1.2" fill="none" stroke-dasharray="5 5" opacity="0.5"/>
+      <path d="M110 20 Q250 90 210 200 Q170 290 80 310" stroke="#576cea" stroke-width="1" fill="none" stroke-dasharray="4 7" opacity="0.3"/>
+    </svg>
+    <div class="shop-icon" style="top:8px;left:44px;animation-delay:0s">🛒<div class="risk-badge">!</div></div>
+    <div class="shop-icon" style="top:8px;right:18px;animation-delay:0.5s">⭐</div>
+    <div class="shop-icon" style="top:108px;left:0;animation-delay:0.9s">💬<div class="risk-badge">?</div></div>
+    <div class="shop-icon" style="top:108px;right:10px;animation-delay:0.3s">🏷️<div class="risk-badge">!</div></div>
+    <div class="shop-icon" style="top:210px;left:44px;animation-delay:0.7s">🏪</div>
+    <div class="shop-icon" style="top:210px;right:28px;animation-delay:1.1s">📦<div class="risk-badge">2</div></div>
+  </div>
+</div>
+
+<!-- S2: Question -->
+<div class="scene" id="s2">
+  <div class="q-bg">?</div>
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="question-text fade-up" id="s2-text">
+      "Bu ürüne gerçekten<br><em>güvenebilir miyim?"</em>
+    </div>
+    <div class="sub fade-up" id="s2-sub" style="transition-delay:0.35s">
+      Kullanıcılar bu sorunun cevabını net göremez.
+    </div>
+  </div>
+</div>
+
+<!-- S3: BiBak intro -->
+<div class="scene" id="s3">
+  <div class="glow-ring" style="width:280px;height:280px;left:50%;top:50%"></div>
+  <div class="glow-ring" style="width:420px;height:420px;left:50%;top:50%;animation-delay:1.2s"></div>
+  <div class="logo-area">
+    <img class="logo-img fade-up" id="s3-logo" src="assets/bibak-logo-white.png" alt="BiBak">
+    <div class="logo-tagline fade-up" id="s3-tag" style="transition-delay:0.3s">Satın almadan önce analiz et.</div>
+  </div>
+</div>
+
+<!-- S4: Extension UI mockup -->
+<div class="scene" id="s4">
+  <div class="product-page">
+    <div class="page-header">
+      <div class="page-dot" style="background:#fe5f57"></div>
+      <div class="page-dot" style="background:#febc2e"></div>
+      <div class="page-dot" style="background:#28c840"></div>
+      <div class="url-bar">trendyol.com/urun/spor-ayakkabi-x200</div>
+    </div>
+    <div class="product-img">👟</div>
+    <div class="product-title">Premium Spor Ayakkabı – Erkek Model X200</div>
+    <div class="product-rating">
+      <span class="stars">★★★★★</span>
+      <span class="review-count">(1.243 yorum)</span>
+    </div>
+    <div style="margin-top:7px">
+      <span class="product-price">₺899</span>
+      <span class="old-price">₺1.499</span>
+      <span class="discount-badge">%40 İNDİRİM</span>
+    </div>
+    <div class="review-snippets">
+      <div class="review-item">⭐⭐⭐⭐⭐ "Harika ürün, çok beğendim, tavsiye ederim!"</div>
+      <div class="review-item">⭐⭐⭐⭐⭐ "Çok kaliteli, herkese tavsiye ederim, süper!"</div>
+      <div class="review-item">⭐⭐⭐⭐⭐ "Mükemmel ürün, kesinlikle alın, çok güzel!"</div>
+    </div>
+  </div>
+
+  <div class="bibak-panel" id="s4-panel">
+    <img class="panel-logo-img" src="assets/bibak-logo-white.png" alt="BiBak">
+    <div class="score-ring">
+      <div class="score-inner">
+        <span class="score-num">42</span>
+        <span class="score-max">/100</span>
+      </div>
+    </div>
+    <div class="score-label">⚠️ Riskli</div>
+    <div class="sub-scores">
+      <div class="sub-score-item">
+        <span class="sub-score-name">Yorumlar</span>
+        <div class="sub-score-bar"><div class="sub-score-fill" style="width:28%;background:#e53e3e"></div></div>
+        <span class="sub-score-val" style="color:#e53e3e">28</span>
+      </div>
+      <div class="sub-score-item">
+        <span class="sub-score-name">Fiyat</span>
+        <div class="sub-score-bar"><div class="sub-score-fill" style="width:48%;background:#f59e0b"></div></div>
+        <span class="sub-score-val" style="color:#f59e0b">48</span>
+      </div>
+      <div class="sub-score-item">
+        <span class="sub-score-name">Satıcı</span>
+        <div class="sub-score-bar"><div class="sub-score-fill" style="width:60%;background:#f59e0b"></div></div>
+        <span class="sub-score-val" style="color:#f59e0b">60</span>
+      </div>
+    </div>
+    <div class="panel-divider"></div>
+    <div class="risk-card">
+      <div class="risk-card-title">⚠ Şüpheli Yorumlar</div>
+      Yorumlar birbirine çok benziyor. Doğal olmayabilir.
+    </div>
+  </div>
+</div>
+
+<!-- S5: Three pillars -->
+<div class="scene" id="s5">
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="pillars-title fade-up" id="s5-title">Güven puanı 3 sinyalden oluşur</div>
+    <div class="pillars-grid">
+      <div class="pillar-card" id="p1">
+        <div class="pillar-icon">💬</div>
+        <div class="pillar-name">Yorum Güvenilirliği</div>
+        <div class="pillar-desc">Yorumlar puanla uyumlu mu? Dikkat edilmesi gereken benzerlikler var mı?</div>
+        <span class="pillar-pct">%45</span>
+      </div>
+      <div class="pillar-card" id="p2">
+        <div class="pillar-icon">💰</div>
+        <div class="pillar-name">Fiyat Tutarlılığı</div>
+        <div class="pillar-desc">İndirim gerçek mi? Güncel fiyat geçmişle uyumlu görünüyor mu?</div>
+        <span class="pillar-pct">%30</span>
+      </div>
+      <div class="pillar-card" id="p3">
+        <div class="pillar-icon">🏪</div>
+        <div class="pillar-name">Satıcı Güvenilirliği</div>
+        <div class="pillar-desc">Satıcı geçmişi ve güven sinyalleri yeterli mi?</div>
+        <span class="pillar-pct">%25</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S6: Score bands -->
+<div class="scene" id="s6">
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="bands-title fade-up" id="s6-title">Güven Puanı Ne Anlama Gelir?</div>
+    <div class="bands-list">
+      <div class="band-row" id="b1">
+        <div class="band-score" style="background:#dcfce7;color:#15803d">85–100</div>
+        <div class="band-label" style="color:#15803d">✅ Çok Güvenilir</div>
+        <div class="band-msg">Güven sinyalleri güçlü.</div>
+      </div>
+      <div class="band-row" id="b2">
+        <div class="band-score" style="background:#d1fae5;color:#059669">70–84</div>
+        <div class="band-label" style="color:#059669">🟢 Güvenilir</div>
+        <div class="band-msg">Genel olarak iyi; küçük uyarıları oku.</div>
+      </div>
+      <div class="band-row" id="b3">
+        <div class="band-score" style="background:#fef3c7;color:#92400e">50–69</div>
+        <div class="band-label" style="color:#b45309">🟡 Dikkatli İncele</div>
+        <div class="band-msg">Satın almadan önce detaylara bak.</div>
+      </div>
+      <div class="band-row" id="b4">
+        <div class="band-score" style="background:#ffedd5;color:#c2410c">30–49</div>
+        <div class="band-label" style="color:#c2410c">🟠 Riskli</div>
+        <div class="band-msg">Alternatiflere bakmadan karar verme.</div>
+      </div>
+      <div class="band-row" id="b5">
+        <div class="band-score" style="background:#fee2e2;color:#dc2626">0–29</div>
+        <div class="band-label" style="color:#dc2626">🔴 Uzak Dur</div>
+        <div class="band-msg">Güçlü manipülasyon sinyalleri var.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S7: Evidence cards -->
+<div class="scene" id="s7">
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="evidence-title fade-up" id="s7-title">Neye dikkat etmelisin?</div>
+    <div class="evidence-grid">
+      <div class="ev-card" id="ec1">
+        <div class="ev-card-icon">💬</div>
+        <div class="ev-card-type" style="color:#9cb2f2">Yorum Analizi</div>
+        <div class="ev-card-title">Şüpheli Yorum Benzerliği</div>
+        <div class="ev-card-desc">Birden fazla yorum benzer cümle yapıları içeriyor. Koordineli veya yapay kaynaklardan gelebilir.</div>
+        <div class="ev-card-action">→ Orta puanlı yorumlara da bak</div>
+      </div>
+      <div class="ev-card" id="ec2">
+        <div class="ev-card-icon">💰</div>
+        <div class="ev-card-type" style="color:#9cb2f2">Fiyat Analizi</div>
+        <div class="ev-card-title">Olası Fake İndirim</div>
+        <div class="ev-card-desc">Eski fiyat piyasa ortalamasından yüksek görünüyor. İndirim olduğundan büyük gösterilmiş olabilir.</div>
+        <div class="ev-card-action">→ Benzer ürünlerle karşılaştır</div>
+      </div>
+      <div class="ev-card" id="ec3">
+        <div class="ev-card-icon">🏪</div>
+        <div class="ev-card-type" style="color:#9cb2f2">Satıcı Analizi</div>
+        <div class="ev-card-title">Satıcı Riski</div>
+        <div class="ev-card-desc">Satıcının geçmişi sınırlı veya güven sinyalleri tutarsız görünüyor.</div>
+        <div class="ev-card-action">→ İade politikasını kontrol et</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S8: Honest states -->
+<div class="scene" id="s8">
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="honest-title fade-up" id="s8-title">BiBak bilmediğini biliyormuş gibi göstermez.</div>
+    <div class="honest-sub fade-up" id="s8-sub" style="transition-delay:0.25s">Veri varsa analiz eder. Yoksa dürüstçe söyler.</div>
+    <div class="state-cards">
+      <div class="state-card" id="sc1" style="border-top-color:#16a34a">
+        <div class="state-card-icon">✅</div>
+        <div class="state-card-title">Güvenilir Ürün</div>
+        <div class="state-card-msg">Yorumlar, fiyat ve satıcı bilgisi normal görünüyor.</div>
+        <span class="state-badge" style="background:#dcfce7;color:#15803d">Güven sinyalleri güçlü</span>
+      </div>
+      <div class="state-card" id="sc2" style="border-top-color:#576cea">
+        <div class="state-card-icon">🔍</div>
+        <div class="state-card-title">Veri Yok</div>
+        <div class="state-card-msg">Bu ürüne ait yorum veya fiyat geçmişi bulunamadı.</div>
+        <span class="state-badge" style="background:#eff0fb;color:#576cea">Sonuç kesin değil</span>
+      </div>
+      <div class="state-card" id="sc3" style="border-top-color:#dc2626">
+        <div class="state-card-icon">⚠️</div>
+        <div class="state-card-title">Risk Tespit Edildi</div>
+        <div class="state-card-msg">Yorum veya fiyatta dikkat edilmesi gereken sinyal var.</div>
+        <span class="state-badge" style="background:#fee2e2;color:#dc2626">Dikkatli incele</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S9: Closing -->
+<div class="scene" id="s9">
+  <div id="particles" style="position:absolute;inset:0;pointer-events:none"></div>
+  <div style="position:relative;z-index:2;text-align:center">
+    <img class="close-logo-img fade-up" id="s9-logo" src="assets/bibak-logo-white.png" alt="BiBak">
+    <div class="close-tagline fade-up" id="s9-tag" style="transition-delay:0.35s">
+      <strong>Satın almadan önce</strong> — güven analizi, sade ve net.
+    </div>
+    <div class="close-sub fade-up" id="s9-sub" style="transition-delay:0.65s">
+      Chrome extension &nbsp;·&nbsp; Türkçe &amp; İngilizce
+    </div>
+  </div>
+</div>
+
+<!-- UI chrome -->
+<div class="progress-bar" id="progressBar"></div>
+<div class="nav-dots" id="navDots"></div>
+<div class="controls">
+  <button class="ctrl-btn" onclick="togglePlay()" id="playBtn">⏸ Duraklat</button>
+  <button class="ctrl-btn" onclick="prev()">← Geri</button>
+  <button class="ctrl-btn" onclick="next()">İleri →</button>
+</div>
+</div>
+
+<script>
+const SCENES = ['s1','s2','s3','s4','s5','s6','s7','s8','s9'];
+const DURATIONS = [1200,1200,900,5000,4400,5000,4400,4400,5200];
+let cur = 0, playing = false, elapsed = 0, startTime = null, rafId = null;
+let startedByScroll = false;
+const shouldAutoplay = new URLSearchParams(window.location.search).get('autoplay') === '1';
+
+const navDots = document.getElementById('navDots');
+SCENES.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'nav-dot' + (i===0?' active':'');
+  d.onclick = () => goTo(i);
+  navDots.appendChild(d);
+});
+
+function activateScene(idx) {
+  SCENES.forEach((id, i) => {
+    document.getElementById(id).classList.toggle('active', i===idx);
+  });
+  document.querySelectorAll('.nav-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
+  setTimeout(() => animIn(idx), 90);
+}
+
+function animIn(idx) {
+  const id = SCENES[idx];
+  document.querySelectorAll('#'+id+' .fade-up').forEach(el => el.classList.add('in'));
+  if(id==='s4') setTimeout(()=>document.getElementById('s4-panel').classList.add('slide-in'), 900);
+  if(id==='s5') ['p1','p2','p3'].forEach((p,i)=>setTimeout(()=>document.getElementById(p).classList.add('pop-in'),350+i*220));
+  if(id==='s6') ['b1','b2','b3','b4','b5'].forEach((b,i)=>setTimeout(()=>document.getElementById(b).classList.add('slide-in'),200+i*140));
+  if(id==='s7') ['ec1','ec2','ec3'].forEach((e,i)=>setTimeout(()=>document.getElementById(e).classList.add('pop-in'),300+i*220));
+  if(id==='s8') ['sc1','sc2','sc3'].forEach((s,i)=>setTimeout(()=>document.getElementById(s).classList.add('pop-in'),400+i*220));
+  if(id==='s9') spawnParticles();
+}
+
+function animOut(idx) {
+  const id = SCENES[idx];
+  document.querySelectorAll('#'+id+' .fade-up').forEach(el => el.classList.remove('in'));
+  const panel = document.getElementById('s4-panel');
+  if(panel) panel.classList.remove('slide-in');
+  ['p1','p2','p3'].forEach(p=>{ const el=document.getElementById(p); if(el) el.classList.remove('pop-in'); });
+  ['b1','b2','b3','b4','b5'].forEach(b=>{ const el=document.getElementById(b); if(el) el.classList.remove('slide-in'); });
+  ['ec1','ec2','ec3'].forEach(e=>{ const el=document.getElementById(e); if(el) el.classList.remove('pop-in'); });
+  ['sc1','sc2','sc3'].forEach(s=>{ const el=document.getElementById(s); if(el) el.classList.remove('pop-in'); });
+}
+
+function goTo(idx) {
+  animOut(cur);
+  cur = idx;
+  activateScene(cur);
+  startTimer();
+}
+
+function next() { goTo((cur+1)%SCENES.length); }
+function prev() { goTo((cur-1+SCENES.length)%SCENES.length); }
+
+function startTimer() {
+  cancelAnimationFrame(rafId);
+  elapsed = 0; startTime = Date.now();
+  if(playing) tick();
+}
+
+function tick() {
+  elapsed = Date.now() - startTime;
+  const dur = DURATIONS[cur];
+  const frac = Math.min(elapsed/dur, 1);
+  const base = cur/SCENES.length;
+  document.getElementById('progressBar').style.width = ((base + frac/SCENES.length)*100)+'%';
+  if(elapsed >= dur) { if(cur < SCENES.length-1) next(); return; }
+  rafId = requestAnimationFrame(tick);
+}
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? '⏸ Duraklat' : '▶ Devam';
+  if(playing) { startTime = Date.now()-elapsed; tick(); }
+  else cancelAnimationFrame(rafId);
+}
+
+function playVideo() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = '⏸ Duraklat';
+  startTimer();
+}
+
+function startVideoFromBeginning() {
+  cancelAnimationFrame(rafId);
+  animOut(cur);
+  cur = 0;
+  elapsed = 0;
+  playing = true;
+  activateScene(cur);
+  startTimer();
+}
+
+function pauseVideo() {
+  if (!playing) return;
+  playing = false;
+  document.getElementById('playBtn').textContent = '▶ Devam';
+  cancelAnimationFrame(rafId);
+}
+
+function spawnParticles() {
+  const area = document.getElementById('particles');
+  area.innerHTML = '';
+  const cols = ['#9cb2f2','#576cea','#ffffff','#dde4fb'];
+  for(let i=0;i<18;i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const sz = Math.random()*5+3;
+    p.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;background:${cols[Math.floor(Math.random()*cols.length)]};animation-delay:${Math.random()*3}s;animation-duration:${2+Math.random()*3}s;`;
+    area.appendChild(p);
+  }
+}
+
+activateScene(0);
+document.getElementById('playBtn').textContent = '▶ Devam';
+
+if (window.self !== window.top) {
+  window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== 'bibak-video') return;
+    if (event.data.action === 'start' && !startedByScroll) {
+      startedByScroll = true;
+      startVideoFromBeginning();
+    }
+    if (event.data.action === 'play') playVideo();
+    if (event.data.action === 'pause') pauseVideo();
+  });
+  if (shouldAutoplay) {
+    startedByScroll = true;
+    requestAnimationFrame(startVideoFromBeginning);
+  }
+} else {
+  playVideo();
+}
+</script>
+</body>
+</html>

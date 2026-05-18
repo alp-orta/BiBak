@@ -19,6 +19,6 @@ When the Chrome Web Store URL is ready, replace the placeholder CTA text with th
 
 - `index.html`
 - `how-it-works.html`
-- `demo.html`
+- `examples.html`
 - `privacy.html`
 - `404.html`
