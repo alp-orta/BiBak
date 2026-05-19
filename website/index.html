@@ -226,6 +226,9 @@
             <ol class="steps">
               <li data-tr="Zip dosyasını indir ve aç." data-en="Download and unzip the file.">Zip dosyasını indir ve aç.
               </li>
+              <li data-tr="API için GitHub reposunu indir ve Python sunucusunu başlat."
+                data-en="Download the GitHub repository for the API and start the Python server.">
+                API için GitHub reposunu indir ve Python sunucusunu başlat.</li>
               <li data-tr="Chrome’da Extensions sayfasını aç ve Developer mode’u etkinleştir."
                 data-en="Open Chrome Extensions and enable Developer mode.">Chrome’da Extensions sayfasını aç ve
                 Developer mode’u etkinleştir.</li>
@@ -233,6 +236,14 @@
                 data-en="Choose the chrome-mv3-prod folder with Load unpacked.">Load unpacked ile chrome-mv3-prod
                 klasörünü seç.</li>
             </ol>
+            <div class="api-setup" aria-label="Python API setup">
+              <p data-tr="API kurulumu" data-en="API setup">API kurulumu</p>
+              <code>git clone https://github.com/alp-orta/BiBak.git</code>
+              <code>cd BiBak/BiBak-api</code>
+              <code>python3 -m venv venv</code>
+              <code>./venv/bin/pip install -r requirements.txt</code>
+              <code>./venv/bin/python main.py</code>
+            </div>
             <div class="hero-actions">
               <a class="button button-primary" href="downloads/bibak-extension-local.zip" download
                 data-tr="BiBak zip indir" data-en="Download BiBak zip">BiBak zip indir</a>
@@ -255,16 +266,12 @@
               data-tr="Zip içinde gizli anahtar, .env dosyası, kaynak kodu, node_modules veya git geçmişi yok."
               data-en="The zip does not include secret keys, .env files, source code, node_modules or git history.">Zip
               içinde gizli anahtar, .env dosyası, kaynak kodu, node_modules veya git geçmişi yok.</p>
+            <p class="mini-note"
+              data-tr="Bu paket yalnızca Chrome extension dosyalarını içerir. Lokal API bu zip’e dahil değildir."
+              data-en="This package only includes Chrome extension files. The local API is not included in this zip.">
+              Bu paket yalnızca Chrome extension dosyalarını içerir. Lokal API bu zip’e dahil değildir.</p>
           </div>
         </div>
-      </section>
-
-      <section class="cta cta-light">
-        <h2 data-tr="Ürün sayfasında daha bilinçli karar ver." data-en="Make a clearer decision on product pages.">Ürün
-          sayfasında daha bilinçli karar ver.</h2>
-        <p data-tr="Yorum, fiyat ve satıcı sinyallerini tek ekranda kontrol et."
-          data-en="Check review, price and seller signals in one view.">Yorum, fiyat ve satıcı sinyallerini tek ekranda
-          kontrol et.</p>
       </section>
     </main>
 
