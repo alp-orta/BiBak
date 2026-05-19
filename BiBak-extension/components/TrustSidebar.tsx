@@ -21,6 +21,9 @@ const COLORS = {
   brandMid: "#1f2787",
   brandEnd: "#17216b",
   blue: "#1f2787",
+  green: "#3F9B68",
+  greenLight: "#8DD9AA",
+  greenSoft: "#ECFDF3",
   yellow: "#D97706",
   red: "#DC2626",
   orange: "#EA580C",
@@ -72,25 +75,25 @@ function getScoreColor(score: number) {
 function getScoreTone(score: number) {
   if (score >= 85) {
     return {
-      start: COLORS.brandSoft,
-      end: COLORS.brandLight,
-      text: COLORS.brandStart,
-      bar: COLORS.brandSoft,
-      inner: COLORS.brandSoft,
-      badgeBg: "#EEF2FF",
-      badgeText: COLORS.brandStart
+      start: "#BFEFD0",
+      end: COLORS.green,
+      text: COLORS.green,
+      bar: COLORS.greenLight,
+      inner: COLORS.green,
+      badgeBg: COLORS.greenSoft,
+      badgeText: COLORS.green
     }
   }
 
   if (score >= 70) {
     return {
-      start: COLORS.brandLight,
-      end: COLORS.brandStart,
-      text: COLORS.brandStart,
-      bar: COLORS.brandLight,
-      inner: COLORS.brandLight,
-      badgeBg: "#EEF2FF",
-      badgeText: COLORS.brandStart
+      start: "#DDF8E8",
+      end: COLORS.greenLight,
+      text: COLORS.green,
+      bar: COLORS.greenLight,
+      inner: COLORS.green,
+      badgeBg: COLORS.greenSoft,
+      badgeText: COLORS.green
     }
   }
 
@@ -126,6 +129,51 @@ function getScoreTone(score: number) {
     inner: COLORS.red,
     badgeBg: COLORS.riskSoft,
     badgeText: COLORS.red
+  }
+}
+
+function getScoreRingTone(score: number) {
+  if (score >= 85) {
+    return {
+      start: COLORS.brandSoft,
+      end: COLORS.brandLight,
+      text: COLORS.brandStart,
+      inner: COLORS.brandSoft
+    }
+  }
+
+  if (score >= 70) {
+    return {
+      start: COLORS.brandLight,
+      end: COLORS.brandStart,
+      text: COLORS.brandStart,
+      inner: COLORS.brandLight
+    }
+  }
+
+  if (score >= 50) {
+    return {
+      start: "#FBBF24",
+      end: COLORS.caution,
+      text: COLORS.caution,
+      inner: COLORS.caution
+    }
+  }
+
+  if (score >= 30) {
+    return {
+      start: COLORS.orange,
+      end: COLORS.red,
+      text: COLORS.orange,
+      inner: COLORS.orange
+    }
+  }
+
+  return {
+    start: COLORS.red,
+    end: COLORS.red,
+    text: COLORS.red,
+    inner: COLORS.red
   }
 }
 
@@ -187,7 +235,7 @@ function formatPriceSignal(value: string | undefined, locale: Locale) {
 function ScoreRing({ score, strings, size = 148 }: { score: number; strings: Translations; size?: number }) {
   const [animatedScore, setAnimatedScore] = useState(0)
   const [dashOffset, setDashOffset] = useState(339.292)
-  const tone = getScoreTone(score)
+  const tone = getScoreRingTone(score)
   const radius = 54
   const circumference = 2 * Math.PI * radius
   const label = getScoreLabel(score, strings)
@@ -489,7 +537,7 @@ function RecommendationCard({ score, locale, strings }: { score: number; locale:
       border: `1px solid ${color}33`,
       borderRadius: 10,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: COLORS.brandStart, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5 }}>
         {strings.recommendation}
       </div>
       <p style={{ fontSize: 12, color: COLORS.text, lineHeight: 1.45, margin: 0 }}>
