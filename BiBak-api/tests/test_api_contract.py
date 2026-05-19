@@ -58,6 +58,23 @@ class ApiContractTest(unittest.TestCase):
         self.assertIsNone(data["review_analysis"])
         self.assertIsInstance(data["risk_flags"], list)
 
+    def test_unavailable_review_text_does_not_claim_no_reviews(self) -> None:
+        response = self.client.post("/analyze-product", json={
+            "reviews": [],
+            "rating": "4.5",
+            "scrape_metadata": {
+                "reviewCount": 1243,
+                "warnings": ["review_text_unavailable"],
+                "confidence": 70,
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn("review_text_unavailable", data["warnings"])
+        self.assertNotIn("no_reviews", data["warnings"])
+        self.assertIn("1243", data["explanations"][0])
+
     def test_pipeline_failure_returns_fallback_contract(self) -> None:
         with patch("services.ml_engine.analyze_reviews", side_effect=RuntimeError("boom")):
             result = analyze_product_data({

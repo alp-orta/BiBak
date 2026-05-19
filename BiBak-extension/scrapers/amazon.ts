@@ -43,6 +43,8 @@ const SELECTORS = {
     ".a-icon-star .a-icon-alt"
   ],
   reviews: [
+    "[data-hook='review-collapsed']",
+    "[data-hook='review-expanded']",
     "[data-hook='reviewRichContentContainer']",
     "[data-hook='review-body'] span",
     "[data-hook='reviewText']",
@@ -51,10 +53,22 @@ const SELECTORS = {
   ]
 };
 
-const TARGET_REVIEW_COUNT = 100;
+const MIN_REVIEW_FETCH_TARGET = 100;
+const AMAZON_REVIEWS_PER_PAGE = 10;
+const MAX_REVIEW_PAGES = 1000;
 const LOW_REVIEW_COUNT_THRESHOLD = 5;
 const OFFER_IFRAME_TIMEOUT_MS = 7000;
 const AMAZON_PRICE_PATTERN = /(?:₺\s*[\d.,]+|[\d.,]+\s*(?:TL|₺)|\$\s*[\d.,]+|[\d.,]+\s*(?:USD|EUR|GBP))/i;
+const AMAZON_PRICE_CONTAINER_SELECTORS = [
+  "#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price)",
+  "#corePrice_feature_div .a-price:not(.a-text-price)",
+  "#corePrice_desktop .a-price:not(.a-text-price)",
+  "#apex_desktop .a-price:not(.a-text-price)",
+  "#buybox_feature_div .a-price:not(.a-text-price)",
+  "#buybox .a-price:not(.a-text-price)",
+  ".a-price[data-a-color='price']:not(.a-text-price)",
+  ".a-price:not(.a-text-price)"
+];
 
 type ProductStructuredData = {
   "@type"?: string | string[];
@@ -112,6 +126,24 @@ type OfferListingPayload = {
   seller: string;
   sellerMetadata: SellerMetadata;
 };
+
+function mergeSellerMetadata(base: SellerMetadata, extra?: SellerMetadata | null): SellerMetadata {
+  if (!extra) {
+    return base;
+  }
+
+  return {
+    seller_name: extra.seller_name || base.seller_name,
+    marketplace_seller_score: extra.marketplace_seller_score ?? base.marketplace_seller_score,
+    seller_age_days: extra.seller_age_days ?? base.seller_age_days,
+    seller_follower_count: extra.seller_follower_count ?? base.seller_follower_count,
+    seller_badges: Array.from(new Set([...(base.seller_badges ?? []), ...(extra.seller_badges ?? [])])),
+    verified_badge_available: !!(base.verified_badge_available || extra.verified_badge_available),
+    fast_delivery_available: !!(base.fast_delivery_available || extra.fast_delivery_available),
+    free_shipping_available: !!(base.free_shipping_available || extra.free_shipping_available),
+    store_url: extra.store_url || base.store_url
+  };
+}
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -361,6 +393,10 @@ export function extractScopedPriceCandidates(root: ParentNode = document): Array
       }
 
       const rawText = normalizeText(extractText(element));
+      if (!AMAZON_PRICE_PATTERN.test(rawText)) {
+        return;
+      }
+
       const value = parsePriceValue(rawText);
       if (value === null || value <= 0) {
         return;
@@ -433,6 +469,75 @@ export function pickPrice(candidates: Array<{ text: string; value: number; selec
   return { text: "", value: null, selector: "" };
 }
 
+function buildSplitAmazonPriceText(priceElement: Element): string {
+  const offscreen = normalizeText(extractText(priceElement.querySelector(".a-offscreen")));
+  if (AMAZON_PRICE_PATTERN.test(offscreen)) {
+    return offscreen;
+  }
+
+  const whole = normalizeText(extractText(priceElement.querySelector(".a-price-whole")))
+    .replace(/[^\d.,]/g, "")
+    .replace(/[.,]+$/, "");
+  const fraction = normalizeText(extractText(priceElement.querySelector(".a-price-fraction")))
+    .replace(/[^\d]/g, "");
+  const symbolText = normalizeText(extractText(priceElement.querySelector(".a-price-symbol")));
+  const priceText = normalizeText(extractText(priceElement));
+  const symbol = symbolText || (priceText.includes("₺") ? "₺" : priceText.match(/\b(TL|USD|EUR|GBP)\b/i)?.[1] ?? "");
+
+  if (!whole || !symbol) {
+    return "";
+  }
+
+  const cents = fraction ? `,${fraction.padEnd(2, "0").slice(0, 2)}` : "";
+  return symbol === "₺" || /^TL$/i.test(symbol) ? `${whole}${cents} TL` : `${symbol} ${whole}${cents}`;
+}
+
+export function extractSplitPriceCandidates(root: ParentNode = document): Array<{
+  text: string;
+  value: number;
+  selector: string;
+  score: number;
+  reason: string;
+}> {
+  const candidates: Array<{
+    text: string;
+    value: number;
+    selector: string;
+    score: number;
+    reason: string;
+  }> = [];
+  const seen = new Set<string>();
+
+  AMAZON_PRICE_CONTAINER_SELECTORS.forEach((selector, index) => {
+    root.querySelectorAll(selector).forEach((element) => {
+      if (!isVisibleElement(element)) {
+        return;
+      }
+
+      const text = buildSplitAmazonPriceText(element);
+      if (!text || seen.has(text)) {
+        return;
+      }
+
+      const value = parsePriceValue(text);
+      if (!value || value <= 0) {
+        return;
+      }
+
+      seen.add(text);
+      candidates.push({
+        text,
+        value,
+        selector,
+        score: 92 - index * 3,
+        reason: "split_amazon_price"
+      });
+    });
+  });
+
+  return candidates.sort((a, b) => b.score - a.score);
+}
+
 export function getStructuredOffer(): PriceExtraction {
   const structured = getStructuredProductData();
   const offers = Array.isArray(structured?.offers) ? structured?.offers : structured?.offers ? [structured.offers] : [];
@@ -490,6 +595,13 @@ export function extractPrice(): { price: PriceExtraction; candidatesChecked: num
   const direct = pickPrice(scopedCandidates);
   if (direct.text && direct.value && direct.value > 0) {
     return { price: direct, candidatesChecked: candidatesCount };
+  }
+
+  const splitCandidates = extractSplitPriceCandidates();
+  candidatesCount += splitCandidates.length;
+  const split = pickPrice(splitCandidates);
+  if (split.text && split.value && split.value > 0) {
+    return { price: split, candidatesChecked: candidatesCount };
   }
 
   const structured = getStructuredOffer();
@@ -689,6 +801,15 @@ function uniqueTexts(values: string[]): string[] {
   );
 }
 
+function cleanReviewText(value: string): string {
+  return normalizeText(value)
+    .replace(/^Brief content visible, double tap to read full content\./i, "")
+    .replace(/^Full content visible, double tap to read brief content\./i, "")
+    .replace(/Daha fazla göster.*$/i, "")
+    .replace(/Read more.*$/i, "")
+    .trim();
+}
+
 function getStructuredReviewDetails(): ScrapedReviewDetail[] {
   const structuredData = getStructuredProductData();
   return (structuredData?.review ?? [])
@@ -719,18 +840,15 @@ function extractReviewDetailsFromDom(root: ParentNode = document): ScrapedReview
 
   for (const review of reviewElements) {
     const id = review.getAttribute("id") || undefined;
-    const text = normalizeText(
+    const text = cleanReviewText(
       extractText(
-        review.querySelector("[data-hook='reviewRichContentContainer']")
-          ?? review.querySelector("[data-hook='review-body'] span")
-          ?? review.querySelector("[data-hook='reviewText']")
+        review.querySelector("[data-hook='review-collapsed']")
+        ?? review.querySelector("[data-hook='review-expanded']")
+        ?? review.querySelector("[data-hook='reviewRichContentContainer']")
+        ?? review.querySelector("[data-hook='review-body'] span")
+        ?? review.querySelector("[data-hook='reviewText']")
       )
-    )
-      .replace(/^Brief content visible, double tap to read full content\./i, "")
-      .replace(/^Full content visible, double tap to read brief content\./i, "")
-      .replace(/Daha fazla göster.*$/i, "")
-      .replace(/Read more.*$/i, "")
-      .trim();
+    );
 
     if (text.length <= 15 || seen.has(text)) {
       continue;
@@ -755,12 +873,7 @@ function extractReviewDetailsFromDom(root: ParentNode = document): ScrapedReview
   // Fallback to simpler selectors if hook elements do not exist
   const simpleElements = root.querySelectorAll(SELECTORS.reviews.join(", "));
   simpleElements.forEach((element, index) => {
-    const text = normalizeText(extractText(element))
-      .replace(/^Brief content visible, double tap to read full content\./i, "")
-      .replace(/^Full content visible, double tap to read brief content\./i, "")
-      .replace(/Daha fazla göster.*$/i, "")
-      .replace(/Read more.*$/i, "")
-      .trim();
+    const text = cleanReviewText(extractText(element));
     if (text.length > 15 && !seen.has(text)) {
       seen.add(text);
       details.push({
@@ -850,8 +963,114 @@ function parseCount(value: string | number | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseAmazonSellerRatingBlock(root: ParentNode, selector: string): { rating: number; count: number } | null {
+  const block = root.querySelector(selector);
+  if (!block) {
+    return null;
+  }
+
+  const text = normalizeText(extractText(block));
+  const ratingText =
+    extractText(block.querySelector(".ratings-reviews"))
+    || text.match(/(\d+(?:[,.]\d+)?)\s*\/\s*5/)?.[1]
+    || "";
+  const rating = parseRating(ratingText);
+  const countText = extractText(block.querySelector(".ratings-reviews-count")) || text;
+  const count = parseCount(countText);
+
+  if (rating <= 0) {
+    return null;
+  }
+
+  return { rating, count };
+}
+
+function hasExplicitSellerVerificationSignal(text: string): boolean {
+  return /onayl[ıi]\s+sat[ıi]c[ıi]|do[ğg]rulanm[ıi][şs]\s+sat[ıi]c[ıi]|verified\s+seller|official\s+seller|resmi\s+sat[ıi]c[ıi]|resmi\s+ma[ğg]aza/i.test(text);
+}
+
+export function extractSellerMetadataFromProfile(root: ParentNode, fallbackSellerName = ""): SellerMetadata {
+  const text = normalizeText(extractText(root instanceof Document ? root.body : root as Element));
+  const sellerName =
+    normalizeText(extractText(root.querySelector("#seller-name")))
+    || fallbackSellerName
+    || undefined;
+  const storeLink = root.querySelector<HTMLAnchorElement>("#seller-info-storefront-link a[href], a[href*='marketplaceID'][href*='me=']");
+  const lifetime = parseAmazonSellerRatingBlock(root, "#rating-lifetime");
+  const year = parseAmazonSellerRatingBlock(root, "#rating-year");
+  const ninety = parseAmazonSellerRatingBlock(root, "#rating-ninety");
+  const selected = lifetime ?? year ?? ninety;
+  const headerPositive = text.match(/Son\s+12\s+ay\s+içinde\s+%(\d+)\s+pozitif\s*\(([\d.,]+)\s+derecelendirme\)/i);
+  const badges = [
+    selected ? `Amazon seller rating ${selected.rating.toLocaleString("tr-TR")}/5` : "",
+    lifetime ? `Lifetime rating count: ${lifetime.count.toLocaleString("tr-TR")}` : "",
+    year ? `12-month rating count: ${year.count.toLocaleString("tr-TR")}` : "",
+    headerPositive ? `${headerPositive[1]}% positive in last 12 months` : ""
+  ].filter(Boolean);
+
+  return {
+    seller_name: sellerName,
+    // Backend marketplace scores are 0-10, while Amazon seller pages are 0-5.
+    marketplace_seller_score: selected ? Math.round(selected.rating * 20) / 10 : undefined,
+    seller_follower_count: selected?.count || parseCount(headerPositive?.[2]) || undefined,
+    seller_badges: badges,
+    verified_badge_available: hasExplicitSellerVerificationSignal(text),
+    store_url: storeLink?.href
+  };
+}
+
 function amazonOrigin(): string {
   return window.location.origin || "https://www.amazon.com.tr";
+}
+
+async function fetchAmazonText(path: string, init?: {
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: string;
+}): Promise<{ ok: boolean; status: number; text: string }> {
+  const url = `${amazonOrigin()}${path}`;
+  const headers = {
+    "accept": "text/html,*/*",
+    "accept-language": document.documentElement.lang || navigator.language || "tr-TR",
+    ...init?.headers
+  };
+
+  if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "amazon-fetch",
+        payload: {
+          url,
+          method: init?.method ?? "GET",
+          headers,
+          body: init?.body
+        }
+      }) as { ok?: boolean; status?: number; text?: string; error?: string } | undefined;
+
+      if (result?.text !== undefined) {
+        return {
+          ok: !!result.ok,
+          status: result.status ?? 0,
+          text: result.text
+        };
+      }
+    } catch (error) {
+      console.warn("[BiBak] Amazon background fetch failed, falling back to page fetch", error);
+    }
+  }
+
+  const response = await fetch(url, {
+    method: init?.method ?? "GET",
+    credentials: "include",
+    headers,
+    body: init?.method === "POST" ? init.body : undefined
+  });
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    text: await response.text()
+  };
 }
 
 function waitForIframeLoad(iframe: HTMLIFrameElement, timeoutMs: number): Promise<Document | null> {
@@ -910,15 +1129,13 @@ async function loadSameOriginDocument(path: string, waitSelector?: string): Prom
 
 async function fetchSameOriginDocument(path: string): Promise<Document | null> {
   try {
-    const response = await fetch(`${amazonOrigin()}${path}`, {
-      credentials: "include"
-    });
+    const response = await fetchAmazonText(path);
     if (!response.ok) {
+      console.warn("[BiBak] Amazon document fetch failed", { path, status: response.status });
       return null;
     }
 
-    const html = await response.text();
-    return new DOMParser().parseFromString(html, "text/html");
+    return new DOMParser().parseFromString(response.text, "text/html");
   } catch (error) {
     console.warn("[BiBak] Amazon same-origin document fetch failed", error);
     return null;
@@ -927,19 +1144,19 @@ async function fetchSameOriginDocument(path: string): Promise<Document | null> {
 
 export function extractOfferListingPayload(root: ParentNode): OfferListingPayload {
   const offers = Array.from(root.querySelectorAll("#aod-pinned-offer, #aod-offer-list .aod-offer, #aod-offer"));
-  
+
   let bestOfferNode: Element | null = null;
   let bestPrice: PriceExtraction = { text: "", value: null, selector: "" };
   let bestSeller = "";
-  
+
   for (const node of offers) {
     const priceEl = node.querySelector(".a-price .a-offscreen, .a-price");
     const priceText = priceEl ? normalizeText(extractText(priceEl)) : "";
     const priceVal = parsePriceValue(priceText);
-    
+
     const sellerEl = node.querySelector("#aod-offer-soldBy a, [id*='soldBy'] a, .aod-offer-soldBy a, .aod-seller-link, #sellerProfileTriggerId");
     const sellerName = sellerEl ? cleanSellerText(extractText(sellerEl)) : "";
-    
+
     if (priceVal && priceVal > 0 && sellerName) {
       bestOfferNode = node;
       bestPrice = { text: priceText, value: priceVal, selector: "aod_offer_node" };
@@ -955,13 +1172,13 @@ export function extractOfferListingPayload(root: ParentNode): OfferListingPayloa
   }
 
   const text = normalizeText((bestOfferNode as HTMLElement).innerText ?? bestOfferNode.textContent ?? (root as Document).body?.innerText ?? (root as Document).body?.textContent ?? "");
-  
+
   if (!bestPrice.value) {
     const priceEl = bestOfferNode.querySelector(".a-price .a-offscreen, .a-price");
     const priceText = priceEl ? normalizeText(extractText(priceEl)) : "";
     bestPrice = { text: priceText, value: parsePriceValue(priceText), selector: "aod_fallback_price" };
   }
-  
+
   if (!bestSeller) {
     const sellerEl = bestOfferNode.querySelector("#aod-offer-soldBy a, [id*='soldBy'] a, .aod-offer-soldBy a, .aod-seller-link, #sellerProfileTriggerId");
     bestSeller = sellerEl ? cleanSellerText(extractText(sellerEl)) : "";
@@ -979,11 +1196,11 @@ export function extractOfferListingPayload(root: ParentNode): OfferListingPayloa
 
   const positiveRatioMatch = text.match(/(?:%(\d+)\s+pozitif|(\d+)%\s+positive)/i);
   const positiveRatio = positiveRatioMatch ? Number(positiveRatioMatch[1] || positiveRatioMatch[2]) : undefined;
-  
+
   const scoreMatch = text.match(/(?:Satıcı puanı\s+5 yıldız üzerinden\s+([\d,.]+)|([\d,.]+)\s+out of 5 stars)/i);
-  let score = scoreMatch ? parseRating(scoreMatch[1] || scoreMatch[2]) : undefined;
+  let score = scoreMatch ? Math.round(parseRating(scoreMatch[1] || scoreMatch[2]) * 20) / 10 : undefined;
   if (!score && positiveRatio) {
-    score = (positiveRatio / 100) * 5;
+    score = (positiveRatio / 100) * 10;
   }
 
   const ratingCountMatch = text.match(/\(([\d.,]+)\s+(?:derecelendirme|ratings?)\)/i);
@@ -992,6 +1209,7 @@ export function extractOfferListingPayload(root: ParentNode): OfferListingPayloa
   const isAmazonFulfilled = /Amazon tarafından gönderilir|Gönderimi Sağlayan\s*(?::)?\s*Amazon|Ships from Amazon|Fulfilled by Amazon/i.test(text);
   const isFreeDelivery = /ÜCRETSİZ teslimat|free delivery|free shipping|ücretsiz kargo/i.test(text);
   const isFastDelivery = /teslimat|delivery|tomorrow|yarın|hızlı|fast/i.test(text);
+  const hasVerifiedBadge = hasExplicitSellerVerificationSignal(text);
 
   const badges = [
     isAmazonFulfilled ? "Amazon fulfilled" : "",
@@ -1008,7 +1226,7 @@ export function extractOfferListingPayload(root: ParentNode): OfferListingPayloa
       marketplace_seller_score: score,
       seller_follower_count: ratingCount,
       seller_badges: badges,
-      verified_badge_available: isAmazonFulfilled || bestSeller === "Amazon" || bestSeller === "Amazon.com.tr",
+      verified_badge_available: hasVerifiedBadge,
       fast_delivery_available: isFastDelivery,
       free_shipping_available: isFreeDelivery,
       store_url: storeUrl
@@ -1062,17 +1280,205 @@ async function fetchOfferListingPayload(asin: string | null): Promise<OfferListi
   return payload.price.text || payload.seller ? payload : null;
 }
 
-async function fetchReviewPageDetails(asin: string | null, targetCount = TARGET_REVIEW_COUNT): Promise<ScrapedReviewDetail[]> {
+async function fetchSellerProfileMetadata(storeUrl: string | undefined, sellerName: string): Promise<SellerMetadata | null> {
+  if (!storeUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(storeUrl, amazonOrigin());
+    const path = `${url.pathname}${url.search || ""}`;
+    const doc = await fetchSameOriginDocument(path);
+    if (!doc) {
+      return null;
+    }
+
+    const metadata = extractSellerMetadataFromProfile(doc, sellerName);
+    return metadata.marketplace_seller_score || metadata.seller_follower_count || metadata.seller_badges?.length
+      ? metadata
+      : null;
+  } catch (error) {
+    console.warn("[BiBak] Amazon seller profile metadata fetch failed", error);
+    return null;
+  }
+}
+
+function getAmazonReviewFetchTarget(): number {
+  return Math.max(getReviewCountFromPage(MIN_REVIEW_FETCH_TARGET), MIN_REVIEW_FETCH_TARGET);
+}
+
+function hasReviewPaginationNextPage(doc: Document): boolean {
+  return !!doc.querySelector(
+    ".a-pagination .a-last:not(.a-disabled) a[href], li.a-last:not(.a-disabled) a[href], a[href*='pageNumber=']"
+  );
+}
+
+function parseAmazonAjaxFragments(raw: string): Document[] {
+  const parser = new DOMParser();
+  const docs: Document[] = [];
+
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^&&&/, "");
+    if (!line) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      if (!Array.isArray(parsed)) {
+        continue;
+      }
+
+      for (const item of parsed) {
+        if (typeof item === "string" && /data-hook=["']review|review-text|review-body/i.test(item)) {
+          docs.push(parser.parseFromString(item, "text/html"));
+        }
+      }
+    } catch {
+      const matches = line.match(/<div[^>]+data-hook=\\?["']review\\?["'][\s\S]*?(?=<div[^>]+data-hook=\\?["']review\\?["']|$)/gi) ?? [];
+      for (const match of matches) {
+        docs.push(parser.parseFromString(match.replace(/\\"/g, "\""), "text/html"));
+      }
+    }
+  }
+
+  return docs;
+}
+
+async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise<Document[]> {
+  const reftags = [
+    `cm_cr_getr_d_paging_btm_next_${page}`,
+    `cm_cr_arp_d_paging_btm_next_${page}`,
+    "cm_cr_arp_d_viewopt_sr"
+  ];
+  const pageSizes = [AMAZON_REVIEWS_PER_PAGE, 15];
+
+  for (const reftag of reftags) {
+    const endpoints = [
+      `/hz/reviews-render/ajax/reviews/get/ref=${reftag}`,
+      `/hz/reviewsrender/ajax/reviews/get/ref=${reftag}`,
+      `/hz/reviews-render/ajax/medley-filtered-reviews/get/ref=cm_cr_dp_d_fltrs_srt?scope=reviewsAjax${page}&asin=${asin}&pageNumber=${page}`
+    ];
+
+    for (const pageSize of pageSizes) {
+      const body = new URLSearchParams({
+        sortBy: "recent",
+        reviewerType: "all_reviews",
+        formatType: "",
+        mediaType: "",
+        filterByStar: "all_stars",
+        filterByLanguage: "all_languages",
+        pageNumber: String(page),
+        filterByKeyword: "",
+        shouldAppend: "undefined",
+        deviceType: "desktop",
+        canShowIntHeader: "undefined",
+        reftag,
+        pageSize: String(pageSize),
+        asin,
+        scope: `reviewsAjax${page}`
+      });
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetchAmazonText(endpoint, {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "x-requested-with": "XMLHttpRequest"
+            },
+            body: body.toString()
+          });
+
+          if (!response.ok) {
+            console.warn("[BiBak] Amazon review ajax failed", { page, endpoint, status: response.status });
+            continue;
+          }
+
+          const text = response.text;
+          if (/sign in|giriş yapın|captcha/i.test(text)) {
+            return [];
+          }
+
+          const docs = parseAmazonAjaxFragments(text);
+          if (docs.length > 0) {
+            return docs;
+          }
+        } catch (error) {
+          console.warn("[BiBak] Amazon review ajax page failed", { page, endpoint, error });
+        }
+      }
+    }
+  }
+
+  return [];
+}
+
+async function fetchReviewAjaxDetails(asin: string | null, targetCount = getAmazonReviewFetchTarget()): Promise<ScrapedReviewDetail[]> {
   if (!asin || !document.body) {
     return [];
   }
 
   const allDetails: ScrapedReviewDetail[] = [];
   const seen = new Set<string>();
-  const pagesToFetch = Math.max(1, Math.ceil(targetCount / 10));
+  const pagesToFetch = Math.max(1, Math.min(MAX_REVIEW_PAGES, Math.ceil(targetCount / AMAZON_REVIEWS_PER_PAGE)));
+  let consecutiveNoNewPages = 0;
 
   for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount; page += 1) {
-    const doc = await loadSameOriginDocument(`/product-reviews/${asin}?reviewerType=all_reviews&pageNumber=${page}`, "[data-hook='review'], [data-hook='review-body'], h1");
+    const docs = await fetchReviewAjaxPageDocuments(asin, page);
+    if (docs.length === 0) {
+      consecutiveNoNewPages += 1;
+      if (consecutiveNoNewPages >= 2) {
+        break;
+      }
+      continue;
+    }
+
+    const beforeCount = allDetails.length;
+    for (const doc of docs) {
+      for (const detail of extractReviewDetailsFromDom(doc)) {
+        const key = normalizeReviewKey(detail.text);
+        if (!seen.has(key)) {
+          seen.add(key);
+          allDetails.push(detail);
+        }
+        if (allDetails.length >= targetCount) {
+          break;
+        }
+      }
+      if (allDetails.length >= targetCount) {
+        break;
+      }
+    }
+
+    if (allDetails.length === beforeCount) {
+      consecutiveNoNewPages += 1;
+      if (consecutiveNoNewPages >= 2) {
+        break;
+      }
+    } else {
+      consecutiveNoNewPages = 0;
+    }
+  }
+
+  return allDetails;
+}
+
+async function fetchReviewPageDetails(asin: string | null, targetCount = getAmazonReviewFetchTarget()): Promise<ScrapedReviewDetail[]> {
+  if (!asin || !document.body) {
+    return [];
+  }
+
+  const allDetails: ScrapedReviewDetail[] = [];
+  const seen = new Set<string>();
+  const pagesToFetch = Math.max(1, Math.min(MAX_REVIEW_PAGES, Math.ceil(targetCount / AMAZON_REVIEWS_PER_PAGE)));
+  let consecutiveNoNewPages = 0;
+
+  for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount; page += 1) {
+    const path = `/product-reviews/${asin}/ref=cm_cr_getr_d_paging_btm_next_${page}?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${page}&filterByStar=all_stars`;
+    const doc =
+      await fetchSameOriginDocument(path)
+      ?? await loadSameOriginDocument(path, "[data-hook='review'], [data-hook='review-body'], h1");
     if (!doc) {
       break;
     }
@@ -1086,6 +1492,7 @@ async function fetchReviewPageDetails(asin: string | null, targetCount = TARGET_
       break;
     }
 
+    const beforeCount = allDetails.length;
     for (const detail of pageDetails) {
       const key = normalizeReviewKey(detail.text);
       if (!seen.has(key)) {
@@ -1096,6 +1503,19 @@ async function fetchReviewPageDetails(asin: string | null, targetCount = TARGET_
         break;
       }
     }
+
+    if (allDetails.length === beforeCount) {
+      consecutiveNoNewPages += 1;
+      if (consecutiveNoNewPages >= 2) {
+        break;
+      }
+    } else {
+      consecutiveNoNewPages = 0;
+    }
+
+    if (allDetails.length < targetCount && pageDetails.length < AMAZON_REVIEWS_PER_PAGE && !hasReviewPaginationNextPage(doc)) {
+      break;
+    }
   }
 
   return allDetails;
@@ -1103,7 +1523,7 @@ async function fetchReviewPageDetails(asin: string | null, targetCount = TARGET_
 
 async function collectAllReviewsLayered(
   asin: string | null,
-  targetCount = TARGET_REVIEW_COUNT
+  targetCount = getAmazonReviewFetchTarget()
 ): Promise<{
   reviewDetails: ScrapedReviewDetail[];
   source: ScrapeSource;
@@ -1144,16 +1564,26 @@ async function collectAllReviewsLayered(
     }
   }
 
-  // 4. Review pages
+  // 4. Signed-in full review pages. Treat these as authoritative once they return comments:
+  // Amazon may expose fewer written reviews than the aggregate star-rating count.
   if (asin) {
     const fetchedReviewPages = await fetchReviewPageDetails(asin, targetCount);
     addReviews(fetchedReviewPages);
+    if (fetchedReviewPages.length > 0) {
+      return { reviewDetails: allDetails, source: "amazon_review_page" };
+    }
+  }
+
+  // 5. Legacy AJAX endpoint fallback. Many Amazon regions now return 403/404 here.
+  if (asin) {
+    const fetchedAjaxReviews = await fetchReviewAjaxDetails(asin, targetCount);
+    addReviews(fetchedAjaxReviews);
     if (allDetails.length >= targetCount) {
       return { reviewDetails: allDetails, source: "amazon_review_page" };
     }
   }
 
-  // 5. Scroll fallback
+  // 6. Scroll fallback
   if (allDetails.length < LOW_REVIEW_COUNT_THRESHOLD) {
     await scrollToLoadAmazonReviews();
     const scrolledDom = extractReviewDetailsFromDom(document);
@@ -1211,15 +1641,15 @@ function extractSellerMetadata(
   identities: ReturnType<typeof extractAmazonIdentities>
 ): SellerMetadata {
   const bodyText = document.body.innerText || "";
-  
+
   let sellerName = seller && seller !== "N/A" ? seller : undefined;
   if (!sellerName && offerPayload?.seller) {
     sellerName = offerPayload.seller;
   }
-  
+
   const brandStoreLink = document.querySelector<HTMLAnchorElement>("#bylineInfo[href], a[href*='/stores/']");
   const sellerStoreLink = document.querySelector<HTMLAnchorElement>("#sellerProfileTriggerId[href], #merchant-info a[href]");
-  
+
   let storeUrl = offerPayload?.sellerMetadata.store_url || sellerStoreLink?.href || brandStoreLink?.href;
   if (storeUrl && storeUrl.startsWith("/")) {
     storeUrl = `${amazonOrigin()}${storeUrl}`;
@@ -1233,9 +1663,7 @@ function extractSellerMetadata(
     sellerName === "Amazon" || sellerName === "Amazon.com.tr" ? "Official Seller" : ""
   ].filter(Boolean)));
 
-  const isAmazonFulfilled = badges.includes("Amazon fulfilled");
-  const isAmazonSeller = badges.includes("Amazon seller") || sellerName === "Amazon" || sellerName === "Amazon.com.tr";
-  const verifiedBadgeAvailable = isAmazonFulfilled || isAmazonSeller || !!offerPayload?.sellerMetadata.verified_badge_available;
+  const verifiedBadgeAvailable = hasExplicitSellerVerificationSignal(bodyText) || !!offerPayload?.sellerMetadata.verified_badge_available;
 
   return {
     seller_name: sellerName,
@@ -1258,6 +1686,7 @@ function buildMetadata(
 ): ScrapeMetadata {
   const missingFields: MissingProductField[] = [];
   const warnings: ScrapeWarning[] = [];
+  const reviewCount = getReviewCountFromPage(product.reviews.length);
 
   if (!product.title) {
     missingFields.push("title");
@@ -1281,9 +1710,9 @@ function buildMetadata(
 
   if (product.reviews.length === 0) {
     missingFields.push("reviews");
-    warnings.push("no_reviews");
+    warnings.push(reviewCount >= LOW_REVIEW_COUNT_THRESHOLD ? "review_text_unavailable" : "no_reviews");
   } else if (product.reviews.length < LOW_REVIEW_COUNT_THRESHOLD) {
-    warnings.push("low_review_count");
+    warnings.push(reviewCount >= LOW_REVIEW_COUNT_THRESHOLD ? "review_text_unavailable" : "low_review_count");
   }
 
   const sourceScore: Record<ScrapeSource, number> = {
@@ -1309,7 +1738,7 @@ function buildMetadata(
     source,
     diagnostics,
     confidence,
-    reviewCount: getReviewCountFromPage(product.reviews.length),
+    reviewCount,
     missingFields,
     warnings
   };
@@ -1333,15 +1762,17 @@ export class AmazonScraper implements Scraper {
 
     const offerPayload = await fetchOfferListingPayload(productId);
     const title = extractTitle();
-    
+
     const { price: pagePrice, candidatesChecked } = extractPrice();
     const price = pagePrice.text ? pagePrice : offerPayload?.price.text ? offerPayload.price : pagePrice;
-    
+
     const priceHistory = buildAmazonPriceHistory(selectedListingId, productId, price, candidatesChecked);
-    
+
     const seller = extractSeller() || offerPayload?.seller || "";
-    const sellerMetadata = extractSellerMetadata(seller, offerPayload, identities);
-    
+    const baseSellerMetadata = extractSellerMetadata(seller, offerPayload, identities);
+    const profileSellerMetadata = await fetchSellerProfileMetadata(baseSellerMetadata.store_url, seller || offerPayload?.seller || "");
+    const sellerMetadata = mergeSellerMetadata(baseSellerMetadata, profileSellerMetadata);
+
     const { reviewDetails, source } = await collectAllReviewsLayered(productId);
     const reviews = reviewDetails.map((review) => review.text);
     const rating = extractRatingFromDom();

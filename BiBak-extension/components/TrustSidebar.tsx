@@ -33,7 +33,7 @@ const COLORS = {
 }
 
 const LOCALE_STORAGE_KEY = "bibak-locale"
-const REVIEW_DATA_WARNING_CODES = ["low_review_count", "no_reviews", "limited_review_data"]
+const REVIEW_DATA_WARNING_CODES = ["low_review_count", "no_reviews", "limited_review_data", "review_text_unavailable"]
 const NON_PRODUCT_PAGE_WARNING = "not_product_page"
 
 function BrandLogo({
@@ -636,6 +636,7 @@ function ReviewEvidencePanel({ data, locale, strings }: { data: AnalysisData; lo
   if (reviewScores.length === 0 || data.warnings?.includes("no_reviews")) return null
 
   const highRiskReviews = reviewScores.filter((review) => review.fraud_score >= 60)
+  const hasSimilarGroups = reviewAnalysis.suspicious_clusters > 0
   const sampleReviews = highRiskReviews
     .filter((review) => review.text_snippet)
     .slice(0, 2)
@@ -663,7 +664,7 @@ function ReviewEvidencePanel({ data, locale, strings }: { data: AnalysisData; lo
         </div>
       ) : (
         <p style={{ fontSize: 11, color: COLORS.textDim, lineHeight: 1.4, margin: "8px 0 0" }}>
-          {strings.noReviewManipulation}
+          {hasSimilarGroups ? strings.similarReviewGroupNotice : strings.noReviewManipulation}
         </p>
       )}
       {locale === "tr" && highRiskReviews.length > 0 && (
@@ -683,12 +684,17 @@ function ReviewEvidencePanel({ data, locale, strings }: { data: AnalysisData; lo
 function LowReviewNotice({ data, scrapedData, locale }: { data: AnalysisData; scrapedData: ScrapedProduct | null; locale: Locale }) {
   const warnings = new Set([...(scrapedData?.metadata?.warnings || []), ...(data.warnings || [])])
   const reviewCount = scrapedData?.metadata?.reviewCount ?? scrapedData?.reviews.length ?? 0
+  const scrapedReviewCount = scrapedData?.reviews.length ?? 0
   const show = REVIEW_DATA_WARNING_CODES.some((warning) => warnings.has(warning)) || reviewCount < 3
   if (!show) return null
 
-  const message = locale === "tr"
-    ? `Yorum az (${reviewCount}). Sonuç kesin değil.`
-    : `Few reviews (${reviewCount}). The result is not final.`
+  const message = warnings.has("review_text_unavailable")
+    ? locale === "tr"
+      ? `Sayfada ${reviewCount} yorum görünüyor, ancak BiBak yalnızca ${scrapedReviewCount} yorum metni okuyabildi. Sonuç sınırlı.`
+      : `Amazon shows ${reviewCount} reviews, but BiBak could only read ${scrapedReviewCount} review texts. The result is limited.`
+    : locale === "tr"
+      ? `Yorum az (${reviewCount}). Sonuç kesin değil.`
+      : `Few reviews (${reviewCount}). The result is not final.`
 
   return (
     <div style={{

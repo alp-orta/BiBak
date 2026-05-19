@@ -56,6 +56,7 @@ export type ScrapeWarning =
   | "missing_price"
   | "missing_seller"
   | "missing_rating"
+  | "review_text_unavailable"
   | "low_review_count"
   | "no_reviews";
 

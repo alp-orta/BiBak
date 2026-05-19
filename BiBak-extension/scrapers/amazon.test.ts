@@ -9,6 +9,7 @@ import {
   extractScopedPriceCandidates,
   pickPrice,
   extractOfferListingPayload,
+  extractSellerMetadataFromProfile,
   extractAmazonIdentities
 } from "./amazon";
 
@@ -174,8 +175,36 @@ function testSellerExtraction() {
   assert(offerPayload.seller === "Kozvit", "Extracts the correct seller name 'Kozvit' from the AOD offer");
   assert(offerPayload.price.value === 499.99, "Extracts the correct active AOD price 499.99");
   assert(offerPayload.sellerMetadata.seller_badges?.includes("Amazon fulfilled") === true, "Identifies fulfillment badges correctly");
-  assert(offerPayload.sellerMetadata.marketplace_seller_score === 4.8, "Correctly extracts seller score 4.8 out of 5");
+  assert(offerPayload.sellerMetadata.marketplace_seller_score === 9.6, "Normalizes seller score 4.8/5 to 9.6/10");
   assert(offerPayload.sellerMetadata.seller_follower_count === 12432, "Correctly captures rating count and stores in seller_follower_count");
+}
+
+function testSellerProfileMetadataExtraction() {
+  console.log("\n--- Testing Amazon Seller Profile Metadata Extraction ---");
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`
+    <h1 id="seller-name">Bizbiz-e</h1>
+    <div id="seller-info-storefront-link"><a href="/s?marketplaceID=A33AVAJ2PDY3EV&me=A2420GG4RDOKD2">Storefront</a></div>
+    <div id="seller-info-feedback-summary">
+      <a>Son 12 ay içinde <b>%68 pozitif</b>(120 derecelendirme)</a>
+    </div>
+    <div id="rating-year">
+      <span class="ratings-reviews">3,8</span><span>/</span> 5
+      <span class="ratings-reviews-count">120</span><span>derecelendirme</span>
+    </div>
+    <div id="rating-lifetime">
+      <span class="ratings-reviews">4,3</span><span>/</span> 5
+      <span class="ratings-reviews-count">529</span><span>derecelendirme</span>
+    </div>
+  `, "text/html");
+
+  const metadata = extractSellerMetadataFromProfile(doc, "Fallback");
+  assert(metadata.seller_name === "Bizbiz-e", "Extracts seller profile name");
+  assert(metadata.marketplace_seller_score === 8.6, "Normalizes lifetime 4.3/5 seller rating to 8.6/10");
+  assert(metadata.seller_follower_count === 529, "Uses lifetime seller rating count as traction");
+  assert(metadata.seller_badges?.some((badge) => badge.includes("68% positive")) === true, "Captures 12-month positive feedback badge");
+  assert(metadata.verified_badge_available === false, "Does not infer verified badge from seller profile presence");
 }
 
 // Run all test suites
@@ -191,6 +220,7 @@ export function runScraperTests() {
     testCouponPromoIgnored();
     testStructuredDataFallback();
     testSellerExtraction();
+    testSellerProfileMetadataExtraction();
     
     console.log("\n=========================================");
     console.log(" ALL TESTS PASSED SUCCESSFULLY! (100%)  ");

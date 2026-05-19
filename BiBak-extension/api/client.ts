@@ -218,7 +218,11 @@ export function buildFallbackAnalysis(data: ProductData, locale: "tr" | "en"): A
     risk_flags: riskFlags,
     explanations,
     source: "fallback",
-    warnings: reviewCount === 0 ? ["backend_unavailable", "no_reviews"] : ["backend_unavailable", "limited_review_data"]
+    warnings: data.scrape_metadata?.warnings?.includes("review_text_unavailable")
+      ? ["backend_unavailable", "review_text_unavailable"]
+      : reviewCount === 0
+        ? ["backend_unavailable", "no_reviews"]
+        : ["backend_unavailable", "limited_review_data"]
   }
 }
 

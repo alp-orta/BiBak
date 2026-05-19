@@ -121,6 +121,16 @@ def _extract_scrape_warnings(product: dict) -> list[str]:
     return [str(warning) for warning in warnings if isinstance(warning, str)]
 
 
+def _scraped_marketplace_review_count(product: dict) -> int:
+    metadata = product.get("scrape_metadata") or {}
+    review_count = metadata.get("reviewCount")
+    if isinstance(review_count, bool):
+        return 0
+    if isinstance(review_count, (int, float)):
+        return max(0, int(review_count))
+    return 0
+
+
 def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> tuple[dict, dict, dict, list[str]]:
     product_key = history_store.make_product_key(product)
     listing_id = _listing_id(product)
@@ -493,6 +503,8 @@ def analyze_product_data(product: dict) -> dict:
     locale = product["locale"]
 
     if not reviews or len(reviews) < 2:
+        marketplace_review_count = _scraped_marketplace_review_count(product)
+        review_text_unavailable = marketplace_review_count >= 2 and len(reviews) < 2
         fraud = 55 if not reviews else 40
         authenticity = 35 if not reviews else 55
         price_analysis, seller_analysis, purchase_timing, warnings = _build_contextual_signals(product, fraud, locale)
@@ -502,18 +514,31 @@ def analyze_product_data(product: dict) -> dict:
         trust_score = _compute_trust_score(authenticity, price_score, seller_score, evidence_penalty)
         risk_flags = _append_contextual_flags([], warnings, locale)
         explanations = _contextual_explanations(price_analysis, seller_analysis, purchase_timing)
-        explanations.insert(
-            0,
-            "Bu üründe yorum yok. Bu yüzden yorum puanı kesin değil."
-            if not reviews and locale == "tr"
-            else "This product has no reviews, so the review score is not certain."
-            if not reviews
-            else "Yorum sayısı çok az. Bu yüzden sonuç kesin değil."
-            if locale == "tr"
-            else "There are very few reviews, so the result is not final."
-        )
+        if review_text_unavailable:
+            explanations.insert(
+                0,
+                f"Sayfada {marketplace_review_count} yorum görünüyor, ancak yeterli yorum metni okunamadı. Bu yüzden yorum puanı kesin değil."
+                if locale == "tr"
+                else f"The page shows {marketplace_review_count} reviews, but enough review text could not be read. The review score is not certain."
+            )
+        else:
+            explanations.insert(
+                0,
+                "Bu üründe yorum yok. Bu yüzden yorum puanı kesin değil."
+                if not reviews and locale == "tr"
+                else "This product has no reviews, so the review score is not certain."
+                if not reviews
+                else "Yorum sayısı çok az. Bu yüzden sonuç kesin değil."
+                if locale == "tr"
+                else "There are very few reviews, so the result is not final."
+            )
         price_info = resolve_current_price(product)
         history_store.record_snapshot(product, price_info, fraud, trust_score)
+        review_warning = (
+            ["review_text_unavailable"]
+            if review_text_unavailable
+            else ["no_reviews"] if not reviews else ["limited_review_data"]
+        )
 
         return {
             "trust_score": trust_score,
@@ -527,7 +552,7 @@ def analyze_product_data(product: dict) -> dict:
             "seller_analysis": seller_analysis,
             "purchase_timing": purchase_timing,
             "source": "api",
-            "warnings": list(dict.fromkeys((["no_reviews"] if not reviews else ["limited_review_data"]) + warnings)),
+            "warnings": list(dict.fromkeys(review_warning + warnings)),
         }
 
     try:

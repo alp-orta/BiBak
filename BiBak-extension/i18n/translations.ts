@@ -23,6 +23,7 @@ export interface Translations {
   highRiskReviews: string
   similarReviewGroups: string
   noReviewManipulation: string
+  similarReviewGroupNotice: string
   priceSignal: string
   riskAlerts: string
   analysis: string
@@ -56,6 +57,7 @@ const tr: Translations = {
   highRiskReviews: "Yüksek riskli yorum",
   similarReviewGroups: "Benzer yorum grubu",
   noReviewManipulation: "Yorumlarda belirgin bir şüphe görünmüyor.",
+  similarReviewGroupNotice: "Benzer yorum grupları var, ancak tekil yorumlarda yüksek risk görünmüyor.",
   priceSignal: "Fiyat Sinyali",
   riskAlerts: "Risk Uyarıları",
   analysis: "Analiz",
@@ -89,6 +91,7 @@ const en: Translations = {
   highRiskReviews: "High-risk reviews",
   similarReviewGroups: "Similar review groups",
   noReviewManipulation: "The visible reviews do not look suspicious.",
+  similarReviewGroupNotice: "Similar review groups were found, but no individual review looks high risk.",
   priceSignal: "Price Signal",
   riskAlerts: "Risk Alerts",
   analysis: "Analysis",

@@ -194,14 +194,14 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
     snapshot_source = _history_source(snapshots)
     latest_snapshot_price = snapshot_values[-1] if snapshot_values else None
     external_values, external_source, external_latest_price = _external_price_values(product)
-    if snapshot_values and snapshot_source != "local_snapshots":
-        values = snapshot_values
-        history_source = snapshot_source
-        latest_history_price = latest_snapshot_price
-    elif external_values:
+    if external_values:
         values = external_values
         history_source = external_source or "external"
         latest_history_price = external_latest_price
+    elif snapshot_values and snapshot_source != "local_snapshots":
+        values = snapshot_values
+        history_source = snapshot_source
+        latest_history_price = latest_snapshot_price
     else:
         values = snapshot_values
         history_source = snapshot_source
