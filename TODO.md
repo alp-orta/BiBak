@@ -11,7 +11,7 @@
 
 - [x] Add a conservative shared history MVP on SQLite with metadata-only product observations, price observations, and seller snapshots.
 - [x] Add `/history/observe` and `/history/product` APIs for normalized shared product/seller/price observations.
-- [ ] Define product identity rules per platform, including canonical URL, product ID, listing ID, seller ID, variant ID, and category.
+- [x] Define product identity rules per platform, including canonical URL, product ID, listing ID, seller ID, variant ID, and category.
 - [ ] Add data freshness, deduplication, and retention policies for price and seller history.
 - [ ] Add a migration path from local SQLite history to the shared backend or a hybrid local-plus-remote model.
 - [ ] Replace MVP SQLite storage with a production shared backend before hosted multi-user rollout.

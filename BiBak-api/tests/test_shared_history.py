@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from main import flask_app
+from services import history_store
 from services.ml_engine import analyze_product_data
 
 
@@ -95,6 +96,34 @@ class SharedHistoryTest(unittest.TestCase):
         self.assertEqual([row["price"] for row in data["price_history"]], [100, 95])
         self.assertEqual(data["price_history"][0]["warning_codes"], ["low_review_count"])
         self.assertEqual(data["seller_history"][0]["marketplace_score"], 9.4)
+
+    def test_observation_normalizes_identity_fields(self) -> None:
+        payload = {
+            "platform": "trendyol",
+            "url": "https://www.trendyol.com/brand/example-product-p-999?merchantId=123",
+            "title": "Example Product",
+            "seller": "Shared Store",
+            "listing_id": "listing-999",
+            "seller_id": "seller-999",
+            "variant_id": "variant-999",
+            "category": "electronics",
+            "price": {"value": 499, "currency": "TRY"},
+            "source": "test",
+        }
+
+        normalized, errors = history_store.normalize_observation_payload(payload)
+
+        self.assertEqual(errors, [])
+        product = normalized["product_observation"]
+        price = normalized["price_observation"]
+        self.assertEqual(product["product_key"], "trendyol:product:999")
+        self.assertEqual(product["product_id"], "999")
+        self.assertEqual(product["listing_id"], "listing-999")
+        self.assertEqual(product["seller_id"], "seller-999")
+        self.assertEqual(product["variant_id"], "variant-999")
+        self.assertEqual(product["category"], "electronics")
+        self.assertEqual(product["url"], "https://www.trendyol.com/brand/example-product-p-999")
+        self.assertEqual(price["variant_id"], "variant-999")
 
     def test_analyze_product_uses_previously_stored_shared_price_observations(self) -> None:
         for price in (100, 102, 160):

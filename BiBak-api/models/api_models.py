@@ -25,6 +25,10 @@ class ProductRequest:
     locale: str = "tr"
     platform: str = "unknown"
     product_id: str = ""
+    listing_id: str = ""
+    seller_id: str = ""
+    variant_id: str = ""
+    category: str = ""
     url: str = ""
     scrape_metadata: dict[str, Any] = field(default_factory=dict)
     parsed_price: dict[str, Any] = field(default_factory=dict)
@@ -93,6 +97,10 @@ class ProductRequest:
             locale=locale,
             platform=platform,
             product_id=_coerce_text(payload.get("product_id")),
+            listing_id=_coerce_text(payload.get("listing_id") or payload.get("listingId")),
+            seller_id=_coerce_text(payload.get("seller_id") or payload.get("sellerId")),
+            variant_id=_coerce_text(payload.get("variant_id") or payload.get("variantId")),
+            category=_coerce_text(payload.get("category") or payload.get("category_id") or payload.get("categoryId")),
             url=_coerce_text(payload.get("url")),
             scrape_metadata=scrape_metadata,
             parsed_price=parsed_price,
@@ -112,6 +120,10 @@ class ProductRequest:
             "locale": self.locale,
             "platform": self.platform,
             "product_id": self.product_id,
+            "listing_id": self.listing_id,
+            "seller_id": self.seller_id,
+            "variant_id": self.variant_id,
+            "category": self.category,
             "url": self.url,
             "scrape_metadata": self.scrape_metadata,
             "parsed_price": self.parsed_price,

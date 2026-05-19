@@ -5,6 +5,7 @@ import ssl
 import time
 from statistics import median
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from seller_analyzer import analyze_seller
@@ -20,6 +21,23 @@ TRENDYOL_DATALAYER_PRICE_RE = re.compile(r'"product_price"\s*:\s*(\d+(?:\.\d+)?)
 TRENDYOL_PRICE_CACHE_TTL_SECONDS = 300
 TRENDYOL_DATALAYER_OVERRIDE_THRESHOLD = 0.12
 _TRENDYOL_PRICE_CACHE: dict[str, tuple[float, float]] = {}
+
+
+def _trendyol_datalayer_url(url: str) -> str:
+    parsed = urlparse(url)
+    allowed_params = {"merchantId", "boutiqueId", "sav"}
+    query = urlencode([
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=False)
+        if key in allowed_params
+    ])
+    return urlunparse((parsed.scheme or "https", parsed.netloc, parsed.path, "", query, ""))
+
+
+def _has_trendyol_listing_context(url: str) -> bool:
+    parsed = urlparse(url or "")
+    query_keys = {key for key, _value in parse_qsl(parsed.query, keep_blank_values=False)}
+    return bool(query_keys.intersection({"merchantId", "listingId"}))
 
 
 def clamp(value: float, minimum: int = 0, maximum: int = 100) -> int:
@@ -86,7 +104,7 @@ def _fetch_trendyol_datalayer_price(url: str) -> float | None:
     if not url or "trendyol.com" not in url or "-p-" not in url:
         return None
 
-    cache_key = url.split("?")[0]
+    cache_key = _trendyol_datalayer_url(url)
     cached = _TRENDYOL_PRICE_CACHE.get(cache_key)
     now = time.time()
     if cached and now - cached[0] < TRENDYOL_PRICE_CACHE_TTL_SECONDS:
@@ -126,7 +144,8 @@ def resolve_current_price(product: dict[str, Any]) -> dict[str, Any]:
     if product.get("platform") != "trendyol":
         return price_info
 
-    datalayer_price = _fetch_trendyol_datalayer_price(str(product.get("url") or ""))
+    product_url = str(product.get("url") or "")
+    datalayer_price = _fetch_trendyol_datalayer_price(product_url)
     current = price_info.get("value")
     if datalayer_price is None:
         return price_info
@@ -139,6 +158,7 @@ def resolve_current_price(product: dict[str, Any]) -> dict[str, Any]:
         should_override = (
             relative_difference >= TRENDYOL_DATALAYER_OVERRIDE_THRESHOLD
             and datalayer_price < current_price
+            and not _has_trendyol_listing_context(product_url)
         )
 
     if should_override:

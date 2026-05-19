@@ -16,6 +16,10 @@ export interface ProductData {
   locale?: string
   platform?: "trendyol" | "hepsiburada" | "amazon" | "unknown"
   product_id?: string
+  listing_id?: string
+  seller_id?: string
+  variant_id?: string
+  category?: string
   url?: string
   scrape_metadata?: {
     productId?: string

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from services.history_store import get_product_snapshots, make_product_key, record_snapshot
 from services.ml_engine import analyze_product_data
-from services.trust_signals import parse_price_text, resolve_current_price
+from services.trust_signals import _trendyol_datalayer_url, parse_price_text, resolve_current_price
 
 
 class TrustSignalsTest(unittest.TestCase):
@@ -146,6 +146,28 @@ class TrustSignalsTest(unittest.TestCase):
         self.assertEqual(price_info["source"], "trendyol_datalayer")
         self.assertEqual(result["price_analysis"]["current_price"], 350.0)
         self.assertIn("scraped_price_overridden_by_trendyol_datalayer", result["warnings"])
+
+    def test_trendyol_merchant_specific_price_is_not_overridden_by_other_listing(self) -> None:
+        product = self._product("549,90 TL")
+        product["url"] = "https://www.trendyol.com/icollagen/kolajen-ve-prebiyotik-tablet-p-752356123?boutiqueId=61&merchantId=1118902&sav=true"
+        product["parsed_price"] = {"value": 549.9, "currency": "TRY", "raw": "549,90 TL"}
+
+        with patch("services.trust_signals._fetch_trendyol_datalayer_price", return_value=350.0):
+            price_info = resolve_current_price(product)
+            result = analyze_product_data(product)
+
+        self.assertEqual(price_info["value"], 549.9)
+        self.assertNotEqual(price_info.get("source"), "trendyol_datalayer")
+        self.assertEqual(result["price_analysis"]["current_price"], 549.9)
+        self.assertNotIn("scraped_price_overridden_by_trendyol_datalayer", result["warnings"])
+
+    def test_trendyol_datalayer_fetch_keeps_merchant_context(self) -> None:
+        url = "https://www.trendyol.com/icollagen/kolajen-ve-prebiyotik-tablet-p-752356123?boutiqueId=61&merchantId=1118902&sav=true&utm_source=x"
+
+        self.assertEqual(
+            _trendyol_datalayer_url(url),
+            "https://www.trendyol.com/icollagen/kolajen-ve-prebiyotik-tablet-p-752356123?boutiqueId=61&merchantId=1118902&sav=true",
+        )
 
     def test_trendyol_plus_basket_discount_is_not_overridden_by_datalayer(self) -> None:
         product = self._product("436,99 TL")

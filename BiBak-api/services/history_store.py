@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from services.product_identity import resolve_product_identity
+
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "bibak.sqlite3"
 
@@ -114,6 +116,17 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     _add_column(conn, "seller_snapshots", "badges", "TEXT")
     _add_column(conn, "seller_snapshots", "source", "TEXT")
     _add_column(conn, "seller_snapshots", "warning_codes", "TEXT")
+    _add_column(conn, "seller_snapshots", "variant_id", "TEXT")
+    _add_column(conn, "seller_snapshots", "category", "TEXT")
+    _add_column(conn, "product_snapshots", "listing_id", "TEXT")
+    _add_column(conn, "product_snapshots", "seller_id", "TEXT")
+    _add_column(conn, "product_snapshots", "variant_id", "TEXT")
+    _add_column(conn, "product_snapshots", "category", "TEXT")
+    _add_column(conn, "product_observations", "seller_id", "TEXT")
+    _add_column(conn, "product_observations", "variant_id", "TEXT")
+    _add_column(conn, "product_observations", "category", "TEXT")
+    _add_column(conn, "price_observations", "seller_id", "TEXT")
+    _add_column(conn, "price_observations", "variant_id", "TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_product_key ON product_snapshots(product_key, created_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_seller ON seller_snapshots(platform, seller, created_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_product_platform ON product_snapshots(platform, created_at)")
@@ -129,16 +142,17 @@ def _add_column(conn: sqlite3.Connection, table: str, column: str, definition: s
 
 
 def make_product_key(product: dict[str, Any]) -> str:
-    platform = product.get("platform") or "unknown"
-    product_id = product.get("product_id")
-    if product_id:
-        return f"{platform}:{product_id}"
+    return resolve_product_identity(product).product_key
 
-    title = " ".join(str(product.get("title") or "").lower().split())
-    seller = " ".join(str(product.get("seller") or "").lower().split())
-    url = str(product.get("url") or "").split("?")[0]
-    identity = title or url or "unknown-product"
-    return f"{platform}:{identity}:{seller}"
+
+def _product_key_aliases(product_key: str | None) -> list[str]:
+    if not product_key:
+        return []
+    aliases = [product_key]
+    parts = product_key.split(":")
+    if len(parts) == 3 and parts[1] == "product":
+        aliases.append(f"{parts[0]}:{parts[2]}")
+    return list(dict.fromkeys(aliases))
 
 
 def _now_iso() -> str:
@@ -196,42 +210,26 @@ def _metadata_from_product(product: dict[str, Any]) -> tuple[str | None, int | N
 
 
 def _listing_id_from_product(product: dict[str, Any]) -> str:
-    metadata = product.get("scrape_metadata") or {}
-    if not isinstance(metadata, dict):
-        metadata = {}
-    diagnostics = metadata.get("diagnostics") if isinstance(metadata.get("diagnostics"), dict) else {}
-    external = product.get("external_price_history") if isinstance(product.get("external_price_history"), dict) else {}
-    return (
-        _coerce_text(metadata.get("listingId"))
-        or _coerce_text(diagnostics.get("selectedListingId"))
-        or _coerce_text(external.get("listingId"))
-    )
+    return resolve_product_identity(product).listing_id or ""
 
 
 def _seller_id_from_product(product: dict[str, Any]) -> str:
-    seller_metadata = product.get("seller_metadata") or {}
-    if not isinstance(seller_metadata, dict):
-        return ""
-    return _coerce_text(seller_metadata.get("seller_id") or seller_metadata.get("id"))
+    return resolve_product_identity(product).seller_id or ""
 
 
 def _normalize_observation_payload(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, list[str]]:
     errors: list[str] = []
     platform = _coerce_platform(payload.get("platform"))
-    product_id = _coerce_text(payload.get("product_id") or payload.get("productId"))
-    listing_id = _coerce_text(payload.get("listing_id") or payload.get("listingId"))
+    identity = resolve_product_identity(payload)
+    product_id = identity.product_id or ""
+    listing_id = identity.listing_id or ""
+    seller_id = identity.seller_id or ""
+    variant_id = identity.variant_id or ""
     seller = _coerce_text(payload.get("seller") or payload.get("seller_name"))
     title = _coerce_text(payload.get("title"))
-    url = _coerce_text(payload.get("url"))
-    product_key = _coerce_text(payload.get("product_key"))
-    if not product_key:
-        product_key = make_product_key({
-            "platform": platform,
-            "product_id": product_id,
-            "title": title,
-            "seller": seller,
-            "url": url,
-        })
+    url = identity.canonical_url or _coerce_text(payload.get("url"))
+    category = identity.category or None
+    product_key = identity.product_key
 
     source = _coerce_text(payload.get("source")) or "history_observe"
     confidence = _coerce_confidence(payload.get("scrape_confidence"))
@@ -249,9 +247,12 @@ def _normalize_observation_payload(payload: dict[str, Any]) -> tuple[dict[str, A
         "product_key": product_key,
         "product_id": product_id or None,
         "listing_id": listing_id or None,
+        "seller_id": seller_id or None,
+        "variant_id": variant_id or None,
         "url": url or None,
         "title": title or None,
         "seller": seller or None,
+        "category": category,
         "source": source,
         "scrape_confidence": confidence,
         "warning_codes": warnings,
@@ -263,7 +264,7 @@ def _normalize_observation_payload(payload: dict[str, Any]) -> tuple[dict[str, A
     price_observation = None
     if price is not None:
         price_observation = {
-            **{key: product_observation[key] for key in ("observed_at", "platform", "product_key", "product_id", "listing_id", "seller", "source", "scrape_confidence", "warning_codes")},
+            **{key: product_observation[key] for key in ("observed_at", "platform", "product_key", "product_id", "listing_id", "seller_id", "variant_id", "seller", "source", "scrape_confidence", "warning_codes")},
             "price": price,
             "currency": currency or None,
         }
@@ -278,9 +279,11 @@ def _normalize_observation_payload(payload: dict[str, Any]) -> tuple[dict[str, A
             "observed_at": observed_at,
             "platform": platform,
             "seller": seller_name,
-            "seller_id": _coerce_text(seller_payload.get("seller_id") or payload.get("seller_id")) or None,
+            "seller_id": _coerce_text(seller_payload.get("seller_id") or payload.get("seller_id") or seller_id) or None,
             "product_key": product_key,
             "listing_id": listing_id or None,
+            "variant_id": variant_id or None,
+            "category": category,
             "rating": _coerce_float(seller_payload.get("rating") or payload.get("rating")),
             "marketplace_score": _coerce_float(seller_payload.get("marketplace_score") or seller_payload.get("marketplace_seller_score")),
             "follower_count": _coerce_int(seller_payload.get("follower_count") or seller_payload.get("seller_follower_count")),
@@ -305,14 +308,16 @@ def normalize_observation_payload(payload: dict[str, Any]) -> tuple[dict[str, An
 
 
 def get_product_snapshots(product_key: str) -> list[dict[str, Any]]:
+    product_keys = _product_key_aliases(product_key)
+    placeholders = ",".join("?" for _ in product_keys)
     with connect() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT * FROM product_snapshots
-            WHERE product_key = ?
+            WHERE product_key IN ({placeholders})
             ORDER BY created_at ASC, id ASC
             """,
-            (product_key,),
+            product_keys,
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -330,8 +335,10 @@ def get_price_observations(
         clauses.append("listing_id = ?")
         params.append(listing_id)
     elif product_key:
-        clauses.append("product_key = ?")
-        params.append(product_key)
+        product_keys = _product_key_aliases(product_key)
+        placeholders = ",".join("?" for _ in product_keys)
+        clauses.append(f"product_key IN ({placeholders})")
+        params.extend(product_keys)
     else:
         return []
 
@@ -415,8 +422,8 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
             """
             INSERT INTO product_observations (
                 observed_at, platform, product_key, product_id, listing_id, url, title,
-                seller, source, scrape_confidence, warning_codes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                seller, seller_id, variant_id, category, source, scrape_confidence, warning_codes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 product_observation["observed_at"],
@@ -427,6 +434,9 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
                 product_observation["url"],
                 product_observation["title"],
                 product_observation["seller"],
+                product_observation["seller_id"],
+                product_observation["variant_id"],
+                product_observation["category"],
                 product_observation["source"],
                 product_observation["scrape_confidence"],
                 json.dumps(product_observation["warning_codes"]),
@@ -438,9 +448,9 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO price_observations (
-                    observed_at, platform, product_key, product_id, listing_id, seller,
-                    price, currency, source, scrape_confidence, warning_codes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    observed_at, platform, product_key, product_id, listing_id, seller_id,
+                    variant_id, seller, price, currency, source, scrape_confidence, warning_codes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     price_observation["observed_at"],
@@ -448,6 +458,8 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
                     price_observation["product_key"],
                     price_observation["product_id"],
                     price_observation["listing_id"],
+                    price_observation["seller_id"],
+                    price_observation["variant_id"],
                     price_observation["seller"],
                     price_observation["price"],
                     price_observation["currency"],
@@ -463,9 +475,9 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
                 """
                 INSERT INTO seller_snapshots (
                     observed_at, platform, seller, seller_id, product_key, listing_id,
-                    rating, marketplace_score, follower_count, badges, scrape_confidence,
-                    source, warning_codes, missing_fields
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    variant_id, category, rating, marketplace_score, follower_count, badges,
+                    scrape_confidence, source, warning_codes, missing_fields
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     seller_snapshot["observed_at"],
@@ -474,6 +486,8 @@ def record_observation(payload: dict[str, Any]) -> dict[str, Any]:
                     seller_snapshot["seller_id"],
                     seller_snapshot["product_key"],
                     seller_snapshot["listing_id"],
+                    seller_snapshot["variant_id"],
+                    seller_snapshot["category"],
                     seller_snapshot["rating"],
                     seller_snapshot["marketplace_score"],
                     seller_snapshot["follower_count"],
@@ -499,13 +513,14 @@ def record_external_price_history(product: dict[str, Any]) -> int:
     if not prices:
         return 0
 
-    product_key = make_product_key(product)
-    platform = _coerce_platform(product.get("platform"))
+    identity = resolve_product_identity(product)
+    product_key = identity.product_key
+    platform = identity.platform
     if platform == "unknown":
         return 0
 
-    product_id = _coerce_text(product.get("product_id") or product.get("productId"))
-    listing_id = _coerce_text(external.get("listingId") or _listing_id_from_product(product))
+    product_id = identity.product_id or ""
+    listing_id = _coerce_text(external.get("listingId") or identity.listing_id)
     seller = _coerce_text(product.get("seller"))
     source = _coerce_text(external.get("source")) or "external_price_history"
     metadata = product.get("scrape_metadata") if isinstance(product.get("scrape_metadata"), dict) else {}
@@ -543,9 +558,9 @@ def record_external_price_history(product: dict[str, Any]) -> int:
             conn.execute(
                 """
                 INSERT INTO price_observations (
-                    observed_at, platform, product_key, product_id, listing_id, seller,
-                    price, currency, source, scrape_confidence, warning_codes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    observed_at, platform, product_key, product_id, listing_id, seller_id,
+                    variant_id, seller, price, currency, source, scrape_confidence, warning_codes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     observed_at_text,
@@ -553,6 +568,8 @@ def record_external_price_history(product: dict[str, Any]) -> int:
                     product_key,
                     product_id or None,
                     listing_id or None,
+                    identity.seller_id,
+                    identity.variant_id,
                     seller or None,
                     numeric_price,
                     "TRY",
@@ -569,13 +586,16 @@ def record_external_price_history(product: dict[str, Any]) -> int:
 def observation_from_product(product: dict[str, Any], price_info: dict[str, Any]) -> dict[str, Any]:
     source, scrape_confidence, warning_codes = _metadata_from_product(product)
     seller_metadata = product.get("seller_metadata") if isinstance(product.get("seller_metadata"), dict) else {}
-    listing_id = _listing_id_from_product(product)
+    identity = resolve_product_identity(product)
     return {
-        "platform": product.get("platform") or "unknown",
-        "product_id": product.get("product_id") or None,
-        "product_key": make_product_key(product),
-        "listing_id": listing_id or None,
-        "url": product.get("url") or None,
+        "platform": identity.platform,
+        "product_id": identity.product_id,
+        "product_key": identity.product_key,
+        "listing_id": identity.listing_id,
+        "seller_id": identity.seller_id,
+        "variant_id": identity.variant_id,
+        "category": identity.category,
+        "url": identity.canonical_url or product.get("url") or None,
         "title": product.get("title") or None,
         "seller": product.get("seller") or None,
         "price": {
@@ -584,7 +604,7 @@ def observation_from_product(product: dict[str, Any], price_info: dict[str, Any]
         },
         "seller_snapshot": {
             "seller": product.get("seller") or None,
-            "seller_id": _seller_id_from_product(product) or None,
+            "seller_id": identity.seller_id,
             "rating": product.get("rating") or None,
             "marketplace_score": seller_metadata.get("marketplace_seller_score"),
             "follower_count": seller_metadata.get("seller_follower_count"),
@@ -606,7 +626,7 @@ def get_history_response(
 ) -> dict[str, Any]:
     platform = _coerce_platform(platform)
     if not product_key and product_id:
-        product_key = f"{platform}:{product_id}"
+        product_key = make_product_key({"platform": platform, "product_id": product_id})
     price_rows = get_price_observations(platform, product_key, listing_id, limit)
     seller_names = [seller] if seller else []
     if not seller_names:
@@ -661,8 +681,9 @@ def record_snapshot(
     if not isinstance(missing_fields, list):
         missing_fields = []
 
-    product_key = make_product_key(product)
-    platform = product.get("platform") or "unknown"
+    identity = resolve_product_identity(product)
+    product_key = identity.product_key
+    platform = identity.platform
     seller = product.get("seller") or ""
     scrape_confidence = metadata.get("confidence")
     if not isinstance(scrape_confidence, int):
@@ -672,16 +693,21 @@ def record_snapshot(
         conn.execute(
             """
             INSERT INTO product_snapshots (
-                product_key, platform, product_id, url, title, seller, price_text,
-                price_value, currency, rating, review_count, fraud_score, trust_score,
-                scrape_confidence, missing_fields
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                product_key, platform, product_id, listing_id, seller_id, variant_id,
+                category, url, title, seller, price_text, price_value, currency,
+                rating, review_count, fraud_score, trust_score, scrape_confidence,
+                missing_fields
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 product_key,
                 platform,
-                product.get("product_id") or None,
-                product.get("url") or None,
+                identity.product_id,
+                identity.listing_id,
+                identity.seller_id,
+                identity.variant_id,
+                identity.category,
+                identity.canonical_url or product.get("url") or None,
                 product.get("title") or None,
                 seller or None,
                 product.get("price") or None,
@@ -700,14 +726,19 @@ def record_snapshot(
             conn.execute(
                 """
                 INSERT INTO seller_snapshots (
-                    platform, seller, product_key, rating, review_count, fraud_score,
-                    trust_score, scrape_confidence, missing_fields
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    platform, seller, seller_id, product_key, listing_id, variant_id,
+                    category, rating, review_count, fraud_score, trust_score,
+                    scrape_confidence, missing_fields
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     platform,
                     seller,
+                    identity.seller_id,
                     product_key,
+                    identity.listing_id,
+                    identity.variant_id,
+                    identity.category,
                     product.get("rating") or 0.0,
                     len(product.get("reviews") or []),
                     fraud_score,
