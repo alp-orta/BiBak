@@ -18,6 +18,12 @@ class ApiContractTest(unittest.TestCase):
         os.environ.pop("BIBAK_DB_PATH", None)
         self.tempdir.cleanup()
 
+    def test_health_endpoint(self) -> None:
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok"})
+
     def test_rejects_non_object_json(self) -> None:
         response = self.client.post(
             "/analyze-product",

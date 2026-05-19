@@ -4,6 +4,8 @@ export interface Translations {
   trustAnalysis: string
   analyzing: string
   analyzingSub: string
+  serverWaking: string
+  serverWakingSub: string
   openProductPage: string
   openProductPageSub: string
   score: string
@@ -38,6 +40,8 @@ const tr: Translations = {
   trustAnalysis: "Güven Analizi",
   analyzing: "Ürün analiz ediliyor...",
   analyzingSub: "Yorumlar ve fiyat kontrol ediliyor",
+  serverWaking: "Sunucu hazırlanıyor...",
+  serverWakingSub: "İlk açılış Render üzerinde 30-60 saniye sürebilir.",
   openProductPage: "Analiz için bir ürün sayfası açın.",
   openProductPageSub: "BiBak sadece ürün sayfalarında çalışır.",
   score: "Puan",
@@ -72,6 +76,8 @@ const en: Translations = {
   trustAnalysis: "Trust Analysis",
   analyzing: "Analyzing product...",
   analyzingSub: "Checking reviews & pricing",
+  serverWaking: "Server is loading up...",
+  serverWakingSub: "First start on Render can take 30-60 seconds.",
   openProductPage: "Open a product page to analyze.",
   openProductPageSub: "BiBak works only on product pages.",
   score: "Score",

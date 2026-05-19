@@ -809,6 +809,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
   const [locale, setLocale] = useState<Locale>(getInitialLocale)
   const [data, setData] = useState<AnalysisData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [serverWaking, setServerWaking] = useState(false)
   const strings = t(locale)
   const reviewCount = scrapedData?.metadata?.reviewCount ?? scrapedData?.reviews.length ?? 0
 
@@ -883,6 +884,16 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
 
     fetchData()
   }, [locale, scrapedData, scrapeError])
+
+  useEffect(() => {
+    if (!loading) {
+      setServerWaking(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => setServerWaking(true), 7000)
+    return () => window.clearTimeout(timer)
+  }, [loading])
 
   if (collapsed) {
     return (
@@ -988,10 +999,10 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         }} />
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, textAlign: "center", margin: 0 }}>
-            {strings.analyzing}
+            {serverWaking ? strings.serverWaking : strings.analyzing}
           </p>
           <p style={{ fontSize: 11, color: COLORS.textDim, textAlign: "center", margin: "4px 0 0" }}>
-            {strings.analyzingSub}
+            {serverWaking ? strings.serverWakingSub : strings.analyzingSub}
           </p>
         </div>
         <style>{`@keyframes bibak-spin { to { transform: rotate(360deg); } }`}</style>
