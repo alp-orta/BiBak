@@ -19,6 +19,27 @@ BiBak bu süreci otomatikleştirir. Chrome eklentisi ürün sayfasından herkese
 - Lokal API ile hızlı demo ve geliştirme kurulumu.
 - Chrome Web Store hazır olana kadar manuel yükleme için zip paketi.
 
+## Teknik Mimari
+
+BiBak iki ana parçadan oluşur: Chrome eklentisi ve lokal analiz API'si. Chrome eklentisi ürün sayfasında çalışır, sayfadaki ürün başlığı, fiyat, satıcı, puan, yorumlar ve platforma özel metadata alanlarını çıkarır. Bu veri backend API'ye gönderilir ve API tarafında yorum analizi, satıcı değerlendirmesi, fiyat sinyali analizi ve güven skoru üretimi yapılır.
+
+Extension tarafında platforma özel scraper modülleri bulunur. Amazon, Trendyol ve Hepsiburada sayfalarının DOM yapıları farklı olduğu için her platform için ayrı veri çıkarım mantığı kullanılır. Çıkarılan veriler ortak bir ürün şemasına normalize edilir ve analiz API'sine standart bir contract ile gönderilir.
+
+Backend tarafında Flask API, gelen ürün verisini doğrular ve analiz pipeline'ına aktarır. Pipeline; yorumlardan risk sinyalleri çıkarır, satıcı ve fiyat metadata'sını değerlendirir, ürün kimliği ve geçmiş gözlem sinyallerini kullanır, ardından kullanıcıya gösterilecek güven skoru, açıklamalar, uyarılar ve aksiyon önerileri üretir.
+
+## Kullanılan Teknolojiler
+
+- **Chrome MV3 Extension**: Tarayıcı eklentisi olarak ürün sayfalarına panel enjekte etmek için.
+- **Plasmo**: Chrome eklentisinin geliştirme, build ve manifest üretim süreci için.
+- **React**: Eklenti içindeki BiBak analiz paneli arayüzü için.
+- **TypeScript**: Extension kodunda tip güvenliği ve daha sürdürülebilir scraper/API contract yapısı için.
+- **Lucide React**: Panel ve extension ikonlarında tutarlı ikon sistemi için.
+- **Flask**: Lokal analiz API'sini sunmak için.
+- **Python**: Backend analiz pipeline'ı, yorum/satıcı/fiyat değerlendirme modülleri ve testler için.
+- **SQLite**: Lokal geliştirme sırasında metadata seviyesinde ürün, satıcı ve fiyat gözlemlerini saklamak için.
+- **unittest**: Backend API ve analiz servislerini doğrulamak için.
+- **npm / Node.js**: Extension bağımlılıkları, typecheck ve production build süreci için.
+
 ## Desteklenen Platformlar
 
 - Amazon ürün sayfaları
@@ -103,12 +124,6 @@ python3 -m http.server 5174
 
 Tarayıcıda `http://localhost:5174` adresini aç.
 
-## Paylaşımlı Geçmiş MVP
-
-API, `/history/observe` ve `/analyze-product` uçları üzerinden ürün, satıcı ve fiyat gözlemlerini SQLite'a metadata seviyesinde kaydeder. Ürün/listing/satıcı kimlikleri, fiyat, para birimi, scrape kaynağı, scrape güveni ve uyarı kodları tutulur.
-
-Bu akış kullanıcı kimliği veya tam yorum metni saklamaz. Mevcut sürüm bir MVP veri yoludur; henüz üretim seviyesi deduplikasyon, moderasyon, saklama politikası veya paylaşımlı merkezi veritabanı içermez.
-
 ## Doğrulama
 
 Backend testleri:
@@ -126,7 +141,3 @@ cd BiBak-extension
 npm run typecheck
 npm run build
 ```
-
-## Hackathon Notu
-
-BiBak'ın değeri, online alışverişte karar verme sürecini tek ekranda güven odaklı hale getirmesidir. Kullanıcı ürün yorumlarını tek tek okumak, satıcı geçmişini manuel kontrol etmek veya fiyatın gerçekten avantajlı olup olmadığını araştırmak zorunda kalmaz. BiBak bu sinyalleri bir araya getirir, analiz eder ve satın almadan önce hızlı bir güven değerlendirmesi sunar.
