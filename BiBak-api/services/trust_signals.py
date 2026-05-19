@@ -389,11 +389,6 @@ def build_seller_analysis(
     avg_fraud = sum(fraud_scores) / len(fraud_scores) if fraud_scores else fraud_score
     avg_confidence = sum(confidences) / len(confidences) if confidences else 70.0
 
-    if history_count < 3:
-        explanation = "Satıcı hakkında az bilgi var. Bu yüzden puan kesin değil." if locale == "tr" else "There is little seller info, so the score is not final."
-    else:
-        explanation = "Satıcı normal görünüyor." if locale == "tr" else "The seller looks normal."
-
     seller_metadata = dict(product.get("seller_metadata") or {})
     seller_metadata.setdefault("name", seller)
     seller_metadata.setdefault("seller_name", seller)
@@ -407,6 +402,21 @@ def build_seller_analysis(
         first_seen = min((row.get("created_at") for row in all_rows if row.get("created_at")), default=None)
         if first_seen:
             seller_metadata["first_seen"] = first_seen
+
+    has_marketplace_seller_info = any(
+        seller_metadata.get(key) is not None
+        for key in ("marketplace_seller_score", "seller_follower_count", "verified_badge_available")
+    )
+    if history_count < 3 and has_marketplace_seller_info:
+        explanation = (
+            "BiBak bu satıcı için henüz az geçmiş veriye sahip. Pazar yeri bilgileri okundu."
+            if locale == "tr"
+            else "BiBak has limited history for this seller, but marketplace seller info was read."
+        )
+    elif history_count < 3:
+        explanation = "Satıcı hakkında az bilgi var. Bu yüzden puan kesin değil." if locale == "tr" else "There is little seller info, so the score is not final."
+    else:
+        explanation = "Satıcı normal görünüyor." if locale == "tr" else "The seller looks normal."
 
     seller_intelligence = analyze_seller(
         seller_metadata=seller_metadata,

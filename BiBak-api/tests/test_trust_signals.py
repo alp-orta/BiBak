@@ -249,5 +249,27 @@ class TrustSignalsTest(unittest.TestCase):
             any("Seller has" in explanation for explanation in result["seller_analysis"]["explanations"])
         )
 
+    def test_turkish_limited_history_does_not_hide_marketplace_seller_score(self) -> None:
+        product = self._product("1.299 TL", title="HiCCUP V Yaka Elbise")
+        product["locale"] = "tr"
+        product["seller"] = "HiCCUP"
+        product["seller_metadata"] = {
+            "seller_name": "HiCCUP",
+            "marketplace_seller_score": 9,
+            "seller_follower_count": 214,
+            "seller_badges": ["Resmi Satıcı"],
+            "verified_badge_available": True,
+        }
+
+        result = analyze_product_data(product)
+
+        self.assertIn("Pazar yeri bilgileri okundu", result["seller_analysis"]["explanation"])
+        self.assertTrue(
+            any("Satıcının pazar yeri puanı 9/10" in explanation for explanation in result["seller_analysis"]["explanations"])
+        )
+        self.assertIn("BiBak satıcı geçmişi az", result["risk_flags"])
+        self.assertIn("Satıcı görünürlüğü sınırlı", result["risk_flags"])
+        self.assertNotIn("Satıcı hakkında az bilgi var", result["risk_flags"])
+
 if __name__ == "__main__":
     unittest.main()
