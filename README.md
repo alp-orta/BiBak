@@ -60,16 +60,11 @@ https://bibakapp.netlify.app/
 
 ## Lokal Kurulum
 
-### 1. Repoyu İndir
+### 1. API'yi Başlat
 
 ```bash
 git clone https://github.com/alp-orta/BiBak.git
 cd BiBak
-```
-
-### 2. API'yi Başlat
-
-```bash
 cd BiBak-api
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
@@ -78,60 +73,15 @@ python3 -m venv venv
 
 API varsayılan olarak `http://127.0.0.1:8000` üzerinde çalışır.
 
-### 3. Extension'ı Çalıştır
+### 2. Chrome Extension'ı Kur
 
-Yeni bir terminalde:
+Chrome Web Store hazır olana kadar extension zip paketiyle manuel kurulabilir.
 
-```bash
-cd BiBak-extension
-npm install
-npm run dev
-```
-
-İsteğe bağlı API adresi ayarı:
-
-```bash
-cp .env.example .env
-```
-
-## Chrome'a Manuel Kurulum
-
-Chrome Web Store hazır olana kadar zip paketiyle manuel kurulum yapılabilir.
-
-1. `website/downloads/bibak-extension-local.zip` dosyasını aç.
-2. Chrome'da `chrome://extensions` adresine git.
-3. `Developer mode` seçeneğini aç.
-4. `Load unpacked` butonuna tıkla.
-5. Zip'ten çıkan `chrome-mv3-prod` klasörünü seç.
-6. API'nin çalıştığından emin ol: `http://127.0.0.1:8000`.
-
-## Zip Paketini Yeniden Üretme
-
-```bash
-cd BiBak-extension
-npm install
-npm run build
-cd build
-zip -r ../../website/downloads/bibak-extension-local.zip chrome-mv3-prod
-```
-
-## Website Lokal Önizleme
-
-```bash
-cd website
-python3 -m http.server 5174
-```
-
-Tarayıcıda `http://localhost:5174` adresini aç.
-
-## Doğrulama
-
-```bash
-cd BiBak-api
-./venv/bin/python -m unittest discover -s tests
-./venv/bin/python test_integration.py
-
-cd ../BiBak-extension
-npm run typecheck
-npm run build
-```
+1. Canlı siteden extension zip dosyasını indir: https://bibakapp.netlify.app/
+2. Zip dosyasını aç.
+3. Chrome'da `chrome://extensions` adresine git.
+4. `Developer mode` seçeneğini aç.
+5. `Load unpacked` butonuna tıkla.
+6. Zip'ten çıkan `chrome-mv3-prod` klasörünü seç.
+7. API'nin çalıştığından emin ol: `http://127.0.0.1:8000`.
+8. Desteklenen bir Amazon, Trendyol veya Hepsiburada ürün sayfasını aç.
