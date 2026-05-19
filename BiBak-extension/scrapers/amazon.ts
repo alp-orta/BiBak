@@ -53,11 +53,14 @@ const SELECTORS = {
   ]
 };
 
-const MIN_REVIEW_FETCH_TARGET = 100;
+const MIN_REVIEW_FETCH_TARGET = 20;
+const MAX_REVIEW_FETCH_TARGET = 40;
 const AMAZON_REVIEWS_PER_PAGE = 10;
-const MAX_REVIEW_PAGES = 1000;
+const MAX_REVIEW_PAGES = 4;
 const LOW_REVIEW_COUNT_THRESHOLD = 5;
-const OFFER_IFRAME_TIMEOUT_MS = 7000;
+const OFFER_IFRAME_TIMEOUT_MS = 4000;
+const AMAZON_FETCH_TIMEOUT_MS = 5000;
+const AMAZON_REVIEW_COLLECTION_BUDGET_MS = 9000;
 const AMAZON_PRICE_PATTERN = /(?:₺\s*[\d.,]+|[\d.,]+\s*(?:TL|₺)|\$\s*[\d.,]+|[\d.,]+\s*(?:USD|EUR|GBP))/i;
 const AMAZON_PRICE_CONTAINER_SELECTORS = [
   "#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price)",
@@ -907,32 +910,6 @@ function extractReviewsFromDom(): string[] {
   return uniqueTexts(texts);
 }
 
-async function scrollToLoadAmazonReviews(): Promise<void> {
-  const reviewRootSelectors = [
-    "#customerReviews",
-    "#customer-reviews_feature_div",
-    "#reviewsMedley",
-    "[data-hook='cr-widget-FocalReviews']"
-  ];
-
-  for (const selector of reviewRootSelectors) {
-    const root = document.querySelector(selector);
-    if (root) {
-      root.scrollIntoView({ block: "start", behavior: "smooth" });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      if (document.querySelectorAll("[data-hook='review'], [data-hook='reviewContainer']").length > 0) {
-        return;
-      }
-    }
-  }
-
-  const maxScrolls = 10;
-  for (let step = 0; step < maxScrolls && document.querySelectorAll("[data-hook='review'], [data-hook='reviewContainer']").length === 0; step += 1) {
-    window.scrollBy({ top: Math.max(1200, window.innerHeight * 2), behavior: "smooth" });
-    await new Promise((resolve) => setTimeout(resolve, 900));
-  }
-}
-
 function getReviewCountFromPage(fallback: number): number {
   const structuredCount = getStructuredProductData()?.aggregateRating?.reviewCount ?? getStructuredProductData()?.aggregateRating?.ratingCount;
   const parsedStructured = parseCount(structuredCount);
@@ -1037,15 +1014,18 @@ async function fetchAmazonText(path: string, init?: {
 
   if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
     try {
-      const result = await chrome.runtime.sendMessage({
-        type: "amazon-fetch",
-        payload: {
-          url,
-          method: init?.method ?? "GET",
-          headers,
-          body: init?.body
-        }
-      }) as { ok?: boolean; status?: number; text?: string; error?: string } | undefined;
+      const result = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: "amazon-fetch",
+          payload: {
+            url,
+            method: init?.method ?? "GET",
+            headers,
+            body: init?.body
+          }
+        }) as Promise<{ ok?: boolean; status?: number; text?: string; error?: string } | undefined>,
+        new Promise<undefined>((resolve) => window.setTimeout(() => resolve(undefined), AMAZON_FETCH_TIMEOUT_MS))
+      ]);
 
       if (result?.text !== undefined) {
         return {
@@ -1059,18 +1039,26 @@ async function fetchAmazonText(path: string, init?: {
     }
   }
 
-  const response = await fetch(url, {
-    method: init?.method ?? "GET",
-    credentials: "include",
-    headers,
-    body: init?.method === "POST" ? init.body : undefined
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), AMAZON_FETCH_TIMEOUT_MS);
 
-  return {
-    ok: response.ok,
-    status: response.status,
-    text: await response.text()
-  };
+  try {
+    const response = await fetch(url, {
+      method: init?.method ?? "GET",
+      credentials: "include",
+      headers,
+      body: init?.method === "POST" ? init.body : undefined,
+      signal: controller.signal
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: await response.text()
+    };
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function waitForIframeLoad(iframe: HTMLIFrameElement, timeoutMs: number): Promise<Document | null> {
@@ -1288,8 +1276,15 @@ async function fetchSellerProfileMetadata(storeUrl: string | undefined, sellerNa
   try {
     const url = new URL(storeUrl, amazonOrigin());
     const path = `${url.pathname}${url.search || ""}`;
-    const doc = await fetchSameOriginDocument(path);
+    const doc =
+      await loadSameOriginDocument(path, "#rating-lifetime, #rating-year, #rating-ninety, #seller-name")
+      ?? await fetchSameOriginDocument(path);
     if (!doc) {
+      return null;
+    }
+
+    const bodyText = normalizeText(doc.body?.innerText ?? doc.body?.textContent ?? "");
+    if (/captcha|opfcaptcha|Alışverişe devam etmek|continue shopping/i.test(bodyText)) {
       return null;
     }
 
@@ -1304,7 +1299,10 @@ async function fetchSellerProfileMetadata(storeUrl: string | undefined, sellerNa
 }
 
 function getAmazonReviewFetchTarget(): number {
-  return Math.max(getReviewCountFromPage(MIN_REVIEW_FETCH_TARGET), MIN_REVIEW_FETCH_TARGET);
+  return Math.min(
+    MAX_REVIEW_FETCH_TARGET,
+    Math.max(getReviewCountFromPage(MIN_REVIEW_FETCH_TARGET), MIN_REVIEW_FETCH_TARGET)
+  );
 }
 
 function hasReviewPaginationNextPage(doc: Document): boolean {
@@ -1345,7 +1343,7 @@ function parseAmazonAjaxFragments(raw: string): Document[] {
   return docs;
 }
 
-async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise<Document[]> {
+async function fetchReviewAjaxPageDocuments(asin: string, page: number, deadlineMs: number): Promise<Document[]> {
   const reftags = [
     `cm_cr_getr_d_paging_btm_next_${page}`,
     `cm_cr_arp_d_paging_btm_next_${page}`,
@@ -1353,7 +1351,11 @@ async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise
   ];
   const pageSizes = [AMAZON_REVIEWS_PER_PAGE, 15];
 
+  let attempts = 0;
   for (const reftag of reftags) {
+    if (Date.now() >= deadlineMs || attempts >= 4) {
+      break;
+    }
     const endpoints = [
       `/hz/reviews-render/ajax/reviews/get/ref=${reftag}`,
       `/hz/reviewsrender/ajax/reviews/get/ref=${reftag}`,
@@ -1361,6 +1363,9 @@ async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise
     ];
 
     for (const pageSize of pageSizes) {
+      if (Date.now() >= deadlineMs || attempts >= 4) {
+        break;
+      }
       const body = new URLSearchParams({
         sortBy: "recent",
         reviewerType: "all_reviews",
@@ -1380,6 +1385,10 @@ async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise
       });
 
       for (const endpoint of endpoints) {
+        if (Date.now() >= deadlineMs || attempts >= 4) {
+          break;
+        }
+        attempts += 1;
         try {
           const response = await fetchAmazonText(endpoint, {
             method: "POST",
@@ -1414,7 +1423,11 @@ async function fetchReviewAjaxPageDocuments(asin: string, page: number): Promise
   return [];
 }
 
-async function fetchReviewAjaxDetails(asin: string | null, targetCount = getAmazonReviewFetchTarget()): Promise<ScrapedReviewDetail[]> {
+async function fetchReviewAjaxDetails(
+  asin: string | null,
+  targetCount = getAmazonReviewFetchTarget(),
+  deadlineMs = Date.now() + AMAZON_REVIEW_COLLECTION_BUDGET_MS
+): Promise<ScrapedReviewDetail[]> {
   if (!asin || !document.body) {
     return [];
   }
@@ -1424,8 +1437,8 @@ async function fetchReviewAjaxDetails(asin: string | null, targetCount = getAmaz
   const pagesToFetch = Math.max(1, Math.min(MAX_REVIEW_PAGES, Math.ceil(targetCount / AMAZON_REVIEWS_PER_PAGE)));
   let consecutiveNoNewPages = 0;
 
-  for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount; page += 1) {
-    const docs = await fetchReviewAjaxPageDocuments(asin, page);
+  for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount && Date.now() < deadlineMs; page += 1) {
+    const docs = await fetchReviewAjaxPageDocuments(asin, page, deadlineMs);
     if (docs.length === 0) {
       consecutiveNoNewPages += 1;
       if (consecutiveNoNewPages >= 2) {
@@ -1464,7 +1477,11 @@ async function fetchReviewAjaxDetails(asin: string | null, targetCount = getAmaz
   return allDetails;
 }
 
-async function fetchReviewPageDetails(asin: string | null, targetCount = getAmazonReviewFetchTarget()): Promise<ScrapedReviewDetail[]> {
+async function fetchReviewPageDetails(
+  asin: string | null,
+  targetCount = getAmazonReviewFetchTarget(),
+  deadlineMs = Date.now() + AMAZON_REVIEW_COLLECTION_BUDGET_MS
+): Promise<ScrapedReviewDetail[]> {
   if (!asin || !document.body) {
     return [];
   }
@@ -1474,7 +1491,7 @@ async function fetchReviewPageDetails(asin: string | null, targetCount = getAmaz
   const pagesToFetch = Math.max(1, Math.min(MAX_REVIEW_PAGES, Math.ceil(targetCount / AMAZON_REVIEWS_PER_PAGE)));
   let consecutiveNoNewPages = 0;
 
-  for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount; page += 1) {
+  for (let page = 1; page <= pagesToFetch && allDetails.length < targetCount && Date.now() < deadlineMs; page += 1) {
     const path = `/product-reviews/${asin}/ref=cm_cr_getr_d_paging_btm_next_${page}?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${page}&filterByStar=all_stars`;
     const doc =
       await fetchSameOriginDocument(path)
@@ -1528,6 +1545,7 @@ async function collectAllReviewsLayered(
   reviewDetails: ScrapedReviewDetail[];
   source: ScrapeSource;
 }> {
+  const deadlineMs = Date.now() + AMAZON_REVIEW_COLLECTION_BUDGET_MS;
   const seenTexts = new Set<string>();
   const allDetails: ScrapedReviewDetail[] = [];
 
@@ -1556,7 +1574,7 @@ async function collectAllReviewsLayered(
   }
 
   // 3. Fetched same-origin product page
-  if (asin) {
+  if (asin && Date.now() < deadlineMs) {
     const fetchedProductPage = await fetchProductPageReviewDetails(asin);
     addReviews(fetchedProductPage);
     if (allDetails.length >= targetCount) {
@@ -1566,8 +1584,8 @@ async function collectAllReviewsLayered(
 
   // 4. Signed-in full review pages. Treat these as authoritative once they return comments:
   // Amazon may expose fewer written reviews than the aggregate star-rating count.
-  if (asin) {
-    const fetchedReviewPages = await fetchReviewPageDetails(asin, targetCount);
+  if (asin && Date.now() < deadlineMs) {
+    const fetchedReviewPages = await fetchReviewPageDetails(asin, targetCount, deadlineMs);
     addReviews(fetchedReviewPages);
     if (fetchedReviewPages.length > 0) {
       return { reviewDetails: allDetails, source: "amazon_review_page" };
@@ -1575,19 +1593,12 @@ async function collectAllReviewsLayered(
   }
 
   // 5. Legacy AJAX endpoint fallback. Many Amazon regions now return 403/404 here.
-  if (asin) {
-    const fetchedAjaxReviews = await fetchReviewAjaxDetails(asin, targetCount);
+  if (asin && Date.now() < deadlineMs) {
+    const fetchedAjaxReviews = await fetchReviewAjaxDetails(asin, targetCount, deadlineMs);
     addReviews(fetchedAjaxReviews);
     if (allDetails.length >= targetCount) {
       return { reviewDetails: allDetails, source: "amazon_review_page" };
     }
-  }
-
-  // 6. Scroll fallback
-  if (allDetails.length < LOW_REVIEW_COUNT_THRESHOLD) {
-    await scrollToLoadAmazonReviews();
-    const scrolledDom = extractReviewDetailsFromDom(document);
-    addReviews(scrolledDom);
   }
 
   let finalSource: ScrapeSource = "dom";
