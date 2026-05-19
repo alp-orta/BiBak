@@ -8,6 +8,7 @@ Amaç basit: Kullanıcı yüzlerce yorumu okumadan "bu ürün güvenilir mi, yor
 
 - Sahte veya birbirine çok benzeyen yorumları yakalamaya yardımcı olur.
 - Satıcı, fiyat ve yorum sinyallerini birlikte değerlendirir.
+- Kullanıcıların analizlerinden anonim ve toplu bir fiyat geçmişi oluşturur.
 - Sonucu sade bir Chrome panelinde açıklar.
 - Türkçe ve İngilizce arayüz sunar.
 - Amazon, Trendyol ve Hepsiburada ürün sayfalarında çalışır.
@@ -29,6 +30,7 @@ BiBak sadece anahtar kelime kontrolü yapmaz; yorumları ve ürün sinyallerini 
 - **Scraper Katmanı**: Amazon, Trendyol ve Hepsiburada'dan ürün, fiyat, satıcı ve yorum verilerini çıkarır.
 - **Flask API**: Extension'dan gelen veriyi analiz pipeline'ına gönderir.
 - **ML Pipeline**: Yorum benzerliği, anomali tespiti, fiyat/satıcı sinyalleri ve güven skorunu hesaplar.
+- **Toplu Fiyat Geçmişi**: Kullanıcı analizlerinden gelen ürün ve fiyat gözlemlerini anonim metadata olarak saklar; böylece zamanla daha güçlü fiyat karşılaştırması yapılabilir.
 - **React UI**: Sonuçları kullanıcı dostu bir panelde gösterir.
 
 ## Kullanılan Teknolojiler
