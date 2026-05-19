@@ -1,4 +1,3 @@
-from review_analyzer import analyze_reviews
 from models.api_models import ProductRequest
 from services import history_store
 from services.trust_signals import (
@@ -15,6 +14,12 @@ TRUST_SCORE_WEIGHTS = {
     "price": 0.30,
     "seller": 0.25,
 }
+
+
+def analyze_reviews(reviews: list[str]) -> dict:
+    from review_analyzer import analyze_reviews as run_review_analysis
+
+    return run_review_analysis(reviews)
 
 
 RISK_FLAG_MAP = {
