@@ -9,11 +9,18 @@
 
 ## P0: Data Backend and History Coverage
 
-- [ ] Design a shared product/seller/price history backend so analysis does not depend only on the local user's SQLite snapshots.
-- [ ] Add ingestion jobs or APIs for normalized product snapshots, seller snapshots, price observations, and review samples.
+- [x] Add a conservative shared history MVP on SQLite with metadata-only product observations, price observations, and seller snapshots.
+- [x] Add `/history/observe` and `/history/product` APIs for normalized shared product/seller/price observations.
 - [ ] Define product identity rules per platform, including canonical URL, product ID, listing ID, seller ID, variant ID, and category.
 - [ ] Add data freshness, deduplication, and retention policies for price and seller history.
 - [ ] Add a migration path from local SQLite history to the shared backend or a hybrid local-plus-remote model.
+- [ ] Replace MVP SQLite storage with a production shared backend before hosted multi-user rollout.
+
+Shared history MVP notes:
+
+- Shared history stores product, seller, price, listing, scrape confidence, source, and warning-code metadata only.
+- It intentionally does not store user identity or full review text.
+- Current limitations: no deduplication, retention policy, moderation/admin review flow, or cross-device user controls yet.
 
 ## P0: Trust Score Calibration
 

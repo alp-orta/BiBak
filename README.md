@@ -2,6 +2,12 @@
 
 BiBak is a browser extension plus local Flask API for product trust analysis.
 
+## Shared History MVP
+
+The API records metadata-only shared product, seller, and price observations in SQLite through `/history/observe` and `/analyze-product`. It stores product/listing/seller identifiers, price, currency, scrape source, scrape confidence, and warning codes. It does not store user identity or full review text for shared history.
+
+This is an MVP data path for shared price and seller history, not a recommendation system. Current limitations include no deduplication, retention policy, moderation tooling, or production shared database.
+
 ## Local Development
 
 API:

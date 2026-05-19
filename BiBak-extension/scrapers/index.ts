@@ -31,7 +31,7 @@ export interface ScrapedReviewDetail {
 }
 
 export interface ExternalPriceHistory {
-  source: "trendyol_internal";
+  source: "trendyol_internal" | "amazon_live_offer";
   listingId?: string;
   contentId?: string;
   candidatesChecked?: number;
@@ -45,6 +45,7 @@ export type ScrapeSource =
   | "trendyol_detailed_api"
   | "trendyol_review_api"
   | "trendyol_review_page"
+  | "amazon_review_page"
   | "fallback";
 
 export type MissingProductField = "title" | "price" | "seller" | "rating" | "reviews";
@@ -99,7 +100,7 @@ function isSupportedProductPage(url: string): boolean {
     return /-p-\d+/i.test(url);
   }
 
-  if (url.includes("amazon.com") || url.includes("amazon.com.tr")) {
+  if (/amazon\.(com|com\.tr|co\.uk|de|fr|it|es)/i.test(url)) {
     return /\/(?:dp|gp\/product)\//i.test(url);
   }
 

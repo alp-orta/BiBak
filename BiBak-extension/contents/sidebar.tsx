@@ -90,6 +90,20 @@ function useCurrentUrl(): string {
   return currentUrl
 }
 
+async function scrapeCurrentPageWithAmazonRetry(): Promise<ScrapedProduct> {
+  let latest = await scrapeCurrentPage()
+  if (latest.platform !== "amazon" || latest.reviews.length > 0) {
+    return latest
+  }
+
+  for (let attempt = 0; attempt < 3 && latest.reviews.length === 0; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1800))
+    latest = await scrapeCurrentPage()
+  }
+
+  return latest
+}
+
 const PlasmoOverlay = () => {
   const [scrapedData, setScrapedData] = useState<ScrapedProduct | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -115,7 +129,7 @@ const PlasmoOverlay = () => {
     setScrapedData(null)
     setError(null)
 
-    scrapeCurrentPage()
+    scrapeCurrentPageWithAmazonRetry()
       .then((data) => {
         if (!cancelled) setScrapedData(data)
       })

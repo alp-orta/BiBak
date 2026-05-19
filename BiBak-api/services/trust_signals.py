@@ -161,6 +161,13 @@ def _price_values(snapshots: list[dict[str, Any]], currency: str | None) -> list
     ]
 
 
+def _history_source(snapshots: list[dict[str, Any]]) -> str:
+    if not snapshots:
+        return "local_snapshots"
+    source = snapshots[0].get("history_source")
+    return str(source) if isinstance(source, str) and source else "local_snapshots"
+
+
 def _external_price_values(product: dict[str, Any]) -> tuple[list[float], str | None, float | None]:
     external = product.get("external_price_history") or {}
     prices = external.get("prices") if isinstance(external, dict) else None
@@ -183,9 +190,22 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
     price_info = resolve_current_price(product)
     current = price_info["value"]
     currency = price_info["currency"]
-    external_values, history_source, latest_history_price = _external_price_values(product)
-    values = external_values or _price_values(snapshots, currency)
-    history_source = history_source or "local_snapshots"
+    snapshot_values = _price_values(snapshots, currency)
+    snapshot_source = _history_source(snapshots)
+    latest_snapshot_price = snapshot_values[-1] if snapshot_values else None
+    external_values, external_source, external_latest_price = _external_price_values(product)
+    if snapshot_values and snapshot_source != "local_snapshots":
+        values = snapshot_values
+        history_source = snapshot_source
+        latest_history_price = latest_snapshot_price
+    elif external_values:
+        values = external_values
+        history_source = external_source or "external"
+        latest_history_price = external_latest_price
+    else:
+        values = snapshot_values
+        history_source = snapshot_source
+        latest_history_price = latest_snapshot_price
     history_count = len(values)
     analysis_values = [*values, current] if current is not None else values
 
@@ -222,7 +242,7 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
             "observed_average": round(avg, 2) if avg is not None else None,
             "observed_high": max(analysis_values) if analysis_values else current,
             "discount_risk": "insufficient_history",
-            "confidence": min(55, (30 if external_values else 15) + history_count * 10),
+            "confidence": min(55, (30 if history_source != "local_snapshots" else 15) + history_count * 10),
             "score": 82,
             "source": history_source,
             "warnings": warnings,
@@ -299,7 +319,7 @@ def build_price_analysis(product: dict[str, Any], snapshots: list[dict[str, Any]
         "current_vs_median": round(current_vs_median, 3),
         "current_vs_average": round(current_vs_average, 3),
         "discount_risk": risk,
-        "confidence": min(98 if external_values else 95, (70 if external_values else 55) + history_count * 4),
+        "confidence": min(98 if history_source != "local_snapshots" else 95, (70 if history_source != "local_snapshots" else 55) + history_count * 4),
         "score": score,
         "source": history_source,
         "warnings": warnings,
@@ -436,4 +456,3 @@ def build_purchase_timing(price_analysis: dict[str, Any], locale: str) -> dict[s
         "confidence": confidence,
         "reason": text.get(locale, text["en"])[reason_key],
     }
-

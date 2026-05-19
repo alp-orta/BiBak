@@ -1169,6 +1169,7 @@ function buildMetadata(
     trendyol_detailed_api: 92,
     trendyol_review_api: 82,
     trendyol_review_page: 76,
+    amazon_review_page: 84,
     dom: 68,
     fallback: 35
   };

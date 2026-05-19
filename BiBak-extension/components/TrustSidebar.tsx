@@ -470,9 +470,9 @@ function parsePriceText(price?: string): { value: number | null; currency: strin
   const productPriceMatches = matches
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => {
-    const end = (item.index ?? 0) + item[0].length
-    return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(normalizedText.slice(end, end + 32))
-  })
+      const end = (item.index ?? 0) + item[0].length
+      return !/^\s*(?:\/|per\b|başına\b|adet\b|tablet\b|kapsül\b|kg\b|g\b|gr\b|ml\b|l\b|lt\b|unit\b|piece\b|pcs\b)/i.test(normalizedText.slice(end, end + 32))
+    })
   const basketPriceMatches = productPriceMatches.filter(({ item, index }) => {
     const previousEnd = index > 0 ? (matches[index - 1].index ?? 0) + matches[index - 1][0].length : Math.max(0, (item.index ?? 0) - 48)
     return normalizedText.slice(previousEnd, item.index ?? 0).toLocaleLowerCase("tr-TR").includes("sepette")
@@ -821,7 +821,7 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
         setLoading(false)
         return
       }
-      
+
       if (!scrapedData) {
         setLoading(true)
         return
@@ -1023,9 +1023,9 @@ export const TrustSidebar = ({ scrapedData, scrapeError }: { scrapedData: Scrape
       </div>
 
       {/* Score Section */}
-      <div style={{ 
+      <div style={{
         display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 16px 12px",
-        position: "relative" 
+        position: "relative"
       }}>
         <ScoreRing score={data.trust_score} strings={strings} />
         {loading && (

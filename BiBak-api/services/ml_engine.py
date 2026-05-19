@@ -123,8 +123,14 @@ def _extract_scrape_warnings(product: dict) -> list[str]:
 
 def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> tuple[dict, dict, dict, list[str]]:
     product_key = history_store.make_product_key(product)
-    product_history = history_store.get_product_snapshots(product_key)
-    seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
+    listing_id = _listing_id(product)
+    history_store.record_external_price_history(product)
+    product_history = history_store.get_price_observations(product["platform"], product_key, listing_id)
+    if not product_history:
+        product_history = history_store.get_product_snapshots(product_key)
+    seller_history = history_store.get_shared_seller_snapshots(product["platform"], product["seller"])
+    if not seller_history:
+        seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
     scrape_confidence = _scrape_confidence(product)
 
     price_analysis = build_price_analysis(product, product_history, locale)
@@ -151,8 +157,14 @@ def _build_contextual_signals(product: dict, fraud_score: int, locale: str) -> t
 
 def _build_contextual_signals_with_review_analysis(product: dict, analysis: dict, locale: str) -> tuple[dict, dict, dict, list[str]]:
     product_key = history_store.make_product_key(product)
-    product_history = history_store.get_product_snapshots(product_key)
-    seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
+    listing_id = _listing_id(product)
+    history_store.record_external_price_history(product)
+    product_history = history_store.get_price_observations(product["platform"], product_key, listing_id)
+    if not product_history:
+        product_history = history_store.get_product_snapshots(product_key)
+    seller_history = history_store.get_shared_seller_snapshots(product["platform"], product["seller"])
+    if not seller_history:
+        seller_history = history_store.get_seller_snapshots(product["platform"], product["seller"])
     scrape_confidence = _scrape_confidence(product)
 
     price_analysis = build_price_analysis(product, product_history, locale)
@@ -176,6 +188,18 @@ def _build_contextual_signals_with_review_analysis(product: dict, analysis: dict
         warnings.append("low_scrape_confidence")
 
     return price_analysis, seller_analysis, purchase_timing, warnings
+
+
+def _listing_id(product: dict) -> str | None:
+    metadata = product.get("scrape_metadata") or {}
+    diagnostics = metadata.get("diagnostics") if isinstance(metadata.get("diagnostics"), dict) else {}
+    external = product.get("external_price_history") if isinstance(product.get("external_price_history"), dict) else {}
+    listing_id = (
+        metadata.get("listingId")
+        or diagnostics.get("selectedListingId")
+        or external.get("listingId")
+    )
+    return str(listing_id).strip() if listing_id else None
 
 
 def _build_pricing_signals(product: dict, price_analysis: dict) -> list[dict]:

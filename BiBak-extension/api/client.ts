@@ -43,7 +43,7 @@ export interface ProductData {
     raw: string
   }
   external_price_history?: {
-    source: "trendyol_internal"
+    source: "trendyol_internal" | "amazon_live_offer"
     listingId?: string
     contentId?: string
     candidatesChecked?: number
