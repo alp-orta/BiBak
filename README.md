@@ -1,4 +1,4 @@
-# BiBak - AI-Powered Shopping Trust Assistant
+# BiBak - Yapay Zeka Destekli Alışveriş Güven Asistanı
 
 BiBak, e-ticaret ürün sayfalarını analiz eden yapay zeka destekli bir Chrome eklentisidir. Yorumları, satıcı bilgilerini, fiyat sinyallerini ve ürün metadata'sını değerlendirerek kullanıcıya tek ekranda güven skoru, risk uyarıları ve satın alma yorumu sunar.
 
@@ -51,6 +51,12 @@ BiBak sadece anahtar kelime kontrolü yapmaz; yorumları ve ürün sinyallerini 
 - `BiBak-api/`: Flask analiz API'si.
 - `website/`: Tanıtım sitesi ve lokal extension zip paketi.
 - `shared/`: Demo ve ortak veri dosyaları.
+
+## Canlı Website
+
+BiBak tanıtım sitesi ve lokal extension indirme sayfası:
+
+https://bibakapp.netlify.app/
 
 ## Lokal Kurulum
 
@@ -109,7 +115,7 @@ cd build
 zip -r ../../website/downloads/bibak-extension-local.zip chrome-mv3-prod
 ```
 
-## Website Önizleme
+## Website Lokal Önizleme
 
 ```bash
 cd website
